@@ -1319,7 +1319,7 @@ function openRawManual(){
       </div>
     </div>
   </div>`;
-  xgAddRows(10);
+  xgAddRows(1);
   xgBind();
 }
 
@@ -1531,7 +1531,7 @@ function xgGetItems(){
     const salesType=tr.querySelector('[data-col="3"] select')?.value||'Paid';
     const qty=parseFloat(tr.querySelector('[data-col="4"] input')?.value)||0;
     const price=parseFloat(tr.querySelector('[data-col="5"] input')?.value)||0;
-    if(!barcode&&!name)return null;
+    if(!barcode)return null; // 바코드 없으면 제외
     return{barcode,name:name||barcode,salesType,qty,price};
   }).filter(Boolean);
 }
