@@ -1331,26 +1331,22 @@ function rmHandlePaste(e){
   const rows=text.trim().split(/\r?\n/).map(r=>r.split('\t'));
   if(!rows.length)return;
 
-  // 수량 셀에 포커스 있을 때 → 각 행 수량에 순서대로 채우기
+  // 숫자만 있는 목록인지 체크 → 수량 목록으로 처리
+  const allNums=rows.every(r=>r.length===1&&/^\d+([,.]?\d+)?$/.test(r[0].trim()));
   const focused=document.activeElement;
   const focusedTr=focused?.closest('tr');
-  if(focusedTr&&focused.type==='number'&&tbody.contains(focusedTr)){
+
+  if(allNums&&focusedTr&&tbody.contains(focusedTr)){
     const nums=rows.map(r=>parseInt(r[0].replace(/,/g,''))).filter(n=>!isNaN(n)&&n>0);
     if(nums.length){
       e.preventDefault();
       const allTrs=Array.from(tbody.querySelectorAll('tr'));
       const startIdx=allTrs.indexOf(focusedTr);
       nums.forEach((n,i)=>{
-        const tr=allTrs[startIdx+i];
-        if(!tr){
-          addRmItem();
-          const newTr=tbody.lastElementChild;
-          const ni=newTr.querySelectorAll('input[type=number]')[0];
-          if(ni){ni.value=n;calcRmTotal(ni);}
-        } else {
-          const ni=tr.querySelectorAll('input[type=number]')[0];
-          if(ni){ni.value=n;calcRmTotal(ni);}
-        }
+        let tr=allTrs[startIdx+i];
+        if(!tr){addRmItem();tr=tbody.lastElementChild;}
+        const ni=tr.querySelectorAll('input[type=number]')[0];
+        if(ni){ni.value=n;calcRmTotal(ni);}
       });
       toast(`${nums.length}개 수량 입력 완료!`);
       return;
