@@ -1321,7 +1321,6 @@ function addRmItemBulk(){
 
 
 function rmHandlePaste(e){
-  // 발주 입력 폼이 열려있을 때만 동작
   const tbody=document.getElementById('rm-items');
   if(!tbody)return;
   const clip=e.clipboardData||window.clipboardData;
@@ -1329,24 +1328,44 @@ function rmHandlePaste(e){
   const text=clip.getData('text');
   if(!text)return;
 
-  // 탭/줄바꿈으로 파싱 (엑셀 복사 형식)
   const rows=text.trim().split(/\r?\n/).map(r=>r.split('\t'));
   if(!rows.length)return;
 
-  // 컬럼 감지: 바코드(숫자 긴 것) + 수량 or 바코드만
-  // 발주서 형식: [바코드, 제품명, 수량] or [바코드, 수량] or [바코드]
+  // 숫자만 있는 목록인지 체크 → 수량 목록으로 처리
+  const allNums=rows.every(r=>r.length===1&&/^\d+([,.]?\d+)?$/.test(r[0].trim()));
+  const focused=document.activeElement;
+  const focusedTr=focused?.closest('tr');
+
+  if(allNums&&focusedTr&&tbody.contains(focusedTr)){
+    const nums=rows.map(r=>parseInt(r[0].replace(/,/g,''))).filter(n=>!isNaN(n)&&n>0);
+    if(nums.length){
+      e.preventDefault();
+      const allTrs=Array.from(tbody.querySelectorAll('tr'));
+      const startIdx=allTrs.indexOf(focusedTr);
+      nums.forEach((n,i)=>{
+        let tr=allTrs[startIdx+i];
+        if(!tr){addRmItem();tr=tbody.lastElementChild;}
+        const ni=tr.querySelectorAll('input[type=number]')[0];
+        if(ni){ni.value=n;calcRmTotal(ni);}
+      });
+      toast(`${nums.length}개 수량 입력 완료!`);
+      return;
+    }
+  }
+
+  // 바코드 파싱
   const parsed=rows.map(cols=>{
     const trimmed=cols.map(c=>c.trim()).filter(c=>c);
     if(!trimmed.length)return null;
     let barcode='',qty=0,name='';
-    // 첫 컬럼이 바코드처럼 생겼으면 (숫자 8자 이상)
     if(/^\d{8,}$/.test(trimmed[0])){
       barcode=trimmed[0];
-      // 나머지에서 숫자만 있는 것 → 수량
       for(let i=1;i<trimmed.length;i++){
-        if(/^\d+$/.test(trimmed[i])&&!qty){qty=parseInt(trimmed[i]);}
-        else if(trimmed[i]&&!name&&!/^\d+$/.test(trimmed[i])){name=trimmed[i];}
+        const cleaned=trimmed[i].replace(/,/g,'');
+        if(/^\d+(\.\d+)?$/.test(cleaned)&&!qty){qty=parseInt(cleaned);}
+        else if(trimmed[i]&&!name&&!/^\d/.test(cleaned)){name=trimmed[i];}
       }
+      if(!qty)qty=0; // 수량 없으면 빈값
     } else return null;
     return {barcode,qty,name};
   }).filter(Boolean);
@@ -1354,7 +1373,6 @@ function rmHandlePaste(e){
   if(!parsed.length)return;
   e.preventDefault();
 
-  // 기존 빈 행 제거 후 붙여넣기
   Array.from(tbody.querySelectorAll('tr')).forEach(tr=>{
     const b=tr.querySelectorAll('input')[0]?.value.trim();
     if(!b)tr.remove();
@@ -1368,8 +1386,12 @@ function rmHandlePaste(e){
     allInputs[0].value=barcode;
     rmParseBarcode(allInputs[0]);
     if(name&&!allInputs[1].value)allInputs[1].value=name;
-    if(qty)numInputs[0].value=qty; // 수량 세팅
-    calcRmTotal(numInputs[0]); // 수량 기준으로 금액 재계산
+    if(qty){
+      numInputs[0].value=qty;
+      calcRmTotal(numInputs[0]);
+    } else {
+      numInputs[0].value='';
+    }
   });
   toast(`${parsed.length}개 품목 붙여넣기 완료!`);
 }
