@@ -2590,8 +2590,11 @@ function renderProducts(){
     <thead><tr>
       <th style="cursor:pointer" onclick="sortProd('barcode')">Barcode${si('barcode',_prodSort)}</th>
       <th style="cursor:pointer" onclick="sortProd('name')">제품명${si('name',_prodSort)}</th>
-      <th style="cursor:pointer;text-align:right" onclick="sortProd('price')">기본 단가${si('price',_prodSort)}</th>
+      <th style="cursor:pointer" onclick="sortProd('name_eng')">영문명${si('name_eng',_prodSort)}</th>
+      <th style="cursor:pointer;text-align:right" onclick="sortProd('price')">단가${si('price',_prodSort)}</th>
       <th style="cursor:pointer" onclick="sortProd('cat')">카테고리${si('cat',_prodSort)}</th>
+      <th style="text-align:center">CARTOON</th>
+      <th style="text-align:center">IN-BOX</th>
       <th>Status</th>
       <th>작업</th>
     </tr></thead>
@@ -2611,21 +2614,24 @@ function filterProd(){
     let vb=_prodSort.col==='price'?parseFloat(b.price)||0:(b[_prodSort.col]||'').toString().toLowerCase();
     if(va<vb)return _prodSort.dir==='asc'?-1:1;if(va>vb)return _prodSort.dir==='asc'?1:-1;return 0;
   });
-  if(!list.length){tbody.innerHTML='<tr><td colspan="6"><div class="est"><i class="ti ti-box"></i>제품 없음</div></td></tr>';return;}
+  if(!list.length){tbody.innerHTML='<tr><td colspan="9"><div class="est"><i class="ti ti-box"></i>제품 없음</div></td></tr>';return;}
   tbody.innerHTML=list.map(p=>{
     const isDiscon=p.status==='단종';
     return'<tr style="'+(isDiscon?'background:#d0d0d0;color:var(--text3)':'')+'">'
       +'<td style="font-size:10px;color:var(--text3)">'+(p.barcode||'-')+'</td>'
       +'<td><strong style="font-weight:600">'+(p.name||'-')+'</strong></td>'
+      +'<td style="font-size:10px;color:var(--text2)">'+(p.name_eng||'-')+'</td>'
       +'<td style="text-align:right">'+fmt(p.price)+'</td>'
       +'<td><span class="badge bg-blue">'+(p.cat||'-')+'</span></td>'
+      +'<td style="text-align:center;font-size:11px">'+(p.cartoon||'-')+'</td>'
+      +'<td style="text-align:center;font-size:11px">'+(p.inbox||'-')+'</td>'
       +'<td><label class="toggle"><input type="checkbox" '+(isDiscon?'':'checked')+' onchange="toggleProdStatus(\''+p.id+'\',this.checked)"><span class="toggle-slider"></span></label></td>'
       +'<td><span class="alink" onclick="editProd(\''+p.id+'\')">수정</span> <span class="alink" style="color:var(--red)" onclick="delProd(\''+p.id+'\')">삭제</span></td>'
       +'</tr>';
   }).join('');
 }
-function openNewProd(){_editProd=null;['p-name','p-barcode','p-cat'].forEach(id=>document.getElementById(id).value='');document.getElementById('p-price').value='';document.getElementById('p-status').value='';document.getElementById('m-prod-title').textContent='제품 등록';om('m-prod');}
-function editProd(id){const p=_products.find(x=>x.id===id);if(!p)return;_editProd=p;document.getElementById('p-name').value=p.name;document.getElementById('p-barcode').value=p.barcode||'';document.getElementById('p-price').value=p.price||'';document.getElementById('p-cat').value=p.cat||'';document.getElementById('p-status').value=p.status||'';document.getElementById('m-prod-title').textContent='제품 수정';om('m-prod');}
+function openNewProd(){_editProd=null;['p-name','p-barcode','p-cat'].forEach(id=>document.getElementById(id).value='');document.getElementById('p-price').value='';document.getElementById('p-status').value='';document.getElementById('p-name-eng').value='';document.getElementById('p-cartoon').value='';document.getElementById('p-inbox').value='';document.getElementById('m-prod-title').textContent='제품 등록';om('m-prod');}
+function editProd(id){const p=_products.find(x=>x.id===id);if(!p)return;_editProd=p;document.getElementById('p-name').value=p.name;document.getElementById('p-barcode').value=p.barcode||'';document.getElementById('p-price').value=p.price||'';document.getElementById('p-cat').value=p.cat||'';document.getElementById('p-status').value=p.status||'';document.getElementById('p-name-eng').value=p.name_eng||'';document.getElementById('p-cartoon').value=p.cartoon||'';document.getElementById('p-inbox').value=p.inbox||'';document.getElementById('m-prod-title').textContent='제품 수정';om('m-prod');}
 async function toggleProdStatus(id, isActive){
   const status=isActive?'':'단종';
   await sb.from('products').update({status}).eq('id',id);
@@ -2642,7 +2648,7 @@ async function toggleProdStatus(id, isActive){
   toast(isActive?'판매중으로 변경':'단종 처리됐습니다.');
 }
 
-async function saveProd(){const name=document.getElementById('p-name').value.trim();if(!name){alert('제품명 필수');return;}const obj={name,barcode:document.getElementById('p-barcode').value,price:parseFloat(document.getElementById('p-price').value)||0,cat:document.getElementById('p-cat').value,status:document.getElementById('p-status').value};if(_editProd){await sb.from('products').update(obj).eq('id',_editProd.id);const idx=_products.findIndex(p=>p.id===_editProd.id);if(idx>=0)_products[idx]={..._editProd,...obj};}else{const{data}=await sb.from('products').insert(obj).select().single();if(data)_products.push(data);}cm('m-prod');renderProducts();toast('저장됐습니다!');}
+async function saveProd(){const name=document.getElementById('p-name').value.trim();if(!name){alert('제품명 필수');return;}const obj={name,barcode:document.getElementById('p-barcode').value,price:parseFloat(document.getElementById('p-price').value)||0,cat:document.getElementById('p-cat').value,status:document.getElementById('p-status').value,name_eng:document.getElementById('p-name-eng').value,cartoon:parseInt(document.getElementById('p-cartoon').value)||0,inbox:parseInt(document.getElementById('p-inbox').value)||0};if(_editProd){await sb.from('products').update(obj).eq('id',_editProd.id);const idx=_products.findIndex(p=>p.id===_editProd.id);if(idx>=0)_products[idx]={..._editProd,...obj};}else{const{data}=await sb.from('products').insert(obj).select().single();if(data)_products.push(data);}cm('m-prod');renderProducts();toast('저장됐습니다!');}
 async function delProd(id){if(!confirm('삭제하시겠습니까?'))return;await sb.from('products').delete().eq('id',id);_products=_products.filter(p=>p.id!==id);renderProducts();}
 
 // ─── 초기화 ───
