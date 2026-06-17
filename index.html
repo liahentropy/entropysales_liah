@@ -1435,21 +1435,27 @@ function xgKeydown(e,r,c){
 }
 
 function xgSelectRow(ri){
-  // 행 전체 선택
   _xgSel={r:ri,c:0,r2:ri,c2:6};
   xgHighlight();
-  // 행 번호 강조
   const tbody=document.getElementById('xg-body');if(!tbody)return;
   tbody.querySelectorAll('.xg-num').forEach(td=>td.style.background='var(--bg3)');
-  const tr=tbody.querySelector(`tr[data-ri="${ri}"]`);
-  if(tr)tr.querySelector('.xg-num').style.background='rgba(37,99,235,0.2)';
+  const tr=tbody.querySelector(`tr[data-ri="${ri}"]`);if(!tr)return;
+  tr.querySelector('.xg-num').style.background='rgba(37,99,235,0.2)';
+  // 포커스를 그리드 컨테이너로 이동해서 Del 키 감지
+  const wrap=tbody.closest('.xg-wrap');
+  if(wrap){wrap.setAttribute('tabindex','0');wrap.focus();}
 }
 
 function xgKeydownGlobal(e){
   const tbody=document.getElementById('xg-body');if(!tbody)return;
   if(e.key==='Delete'||e.key==='Backspace'){
     const focused=document.activeElement;
+    // 일반 input에서 값 있고 단일 셀 선택이면 기본 동작
     if(focused&&focused.tagName==='INPUT'&&focused.value.length>0&&_xgSel.r===_xgSel.r2&&_xgSel.c===_xgSel.c2)return;
+    // xg-wrap이나 그 안에 포커스 없으면 무시
+    const wrap=tbody.closest('.xg-wrap');
+    const inGrid=wrap&&(wrap===focused||wrap.contains(focused));
+    if(!inGrid)return;
     e.preventDefault();
     const r1=Math.min(_xgSel.r,_xgSel.r2),r2=Math.max(_xgSel.r,_xgSel.r2);
     const c1=Math.min(_xgSel.c,_xgSel.c2),c2=Math.max(_xgSel.c,_xgSel.c2);
@@ -1463,8 +1469,7 @@ function xgKeydownGlobal(e){
       Array.from(tbody.querySelectorAll('tr[data-ri]')).forEach((tr,i)=>{
         tr.dataset.ri=i;
         const num=tr.querySelector('.xg-num');
-        if(num)num.textContent=i+1;
-        num.onclick=()=>xgSelectRow(i);
+        if(num){num.textContent=i+1;num.onclick=()=>xgSelectRow(i);}
       });
       _xgSel={r:Math.max(0,r1-1),c:0,r2:Math.max(0,r1-1),c2:0};
       return;
