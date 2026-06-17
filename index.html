@@ -1335,7 +1335,7 @@ function xgAddRows(n=1){
     const tr=document.createElement('tr');
     tr.dataset.ri=ri;
     tr.innerHTML=`
-      <td class="xg-num" style="text-align:center;font-size:10px;color:var(--text3);background:var(--bg3);user-select:none">${ri+1}</td>
+      <td class="xg-num" style="text-align:center;font-size:10px;color:var(--text3);background:var(--bg3);user-select:none;cursor:pointer" onclick="xgSelectRow(${ri})" title="클릭해서 행 선택 후 Del로 삭제">${ri+1}</td>
       <td data-col="0"><input type="text" placeholder="바코드"/></td>
       <td data-col="1"><input type="text" placeholder="자동입력" readonly style="color:var(--text2)"/></td>
       <td data-col="2" style="text-align:right;font-size:11px;color:var(--text2);padding:3px 6px">-</td>
@@ -1350,24 +1350,28 @@ function xgAddRows(n=1){
 
 function xgBindRows(tbody,from=0){
   const rows=tbody.rows;
+  let isDragging=false;
   for(let i=from;i<rows.length;i++){
     const tr=rows[i];
-    // 바코드 입력
     const bc=tr.querySelector('[data-col="0"] input');
     if(bc){
       bc.addEventListener('change',()=>xgParseBarcode(tr));
       bc.addEventListener('blur',()=>xgParseBarcode(tr));
     }
-    // 수량/공급가 변경시 금액 계산
     ['4','5'].forEach(c=>{
       const inp=tr.querySelector(`[data-col="${c}"] input`);
       if(inp)inp.addEventListener('input',()=>xgCalcAmt(tr));
     });
-    // 셀 포커스
     tr.querySelectorAll('td[data-col]').forEach(td=>{
       td.addEventListener('mousedown',e=>{
-        if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
-        e.preventDefault();xgFocus(parseInt(tr.dataset.ri),parseInt(td.dataset.col));
+        isDragging=true;
+        xgFocus(parseInt(tr.dataset.ri),parseInt(td.dataset.col));
+      });
+      td.addEventListener('mouseover',e=>{
+        if(!isDragging)return;
+        _xgSel.r2=parseInt(tr.dataset.ri);
+        _xgSel.c2=parseInt(td.dataset.col);
+        xgHighlight();
       });
       const inp=td.querySelector('input,select');
       if(inp){
@@ -1376,6 +1380,7 @@ function xgBindRows(tbody,from=0){
       }
     });
   }
+  document.addEventListener('mouseup',()=>{isDragging=false;});
 }
 
 function xgBind(){
@@ -1429,29 +1434,55 @@ function xgKeydown(e,r,c){
   }
 }
 
+function xgSelectRow(ri){
+  // 행 전체 선택
+  _xgSel={r:ri,c:0,r2:ri,c2:6};
+  xgHighlight();
+  // 행 번호 강조
+  const tbody=document.getElementById('xg-body');if(!tbody)return;
+  tbody.querySelectorAll('.xg-num').forEach(td=>td.style.background='var(--bg3)');
+  const tr=tbody.querySelector(`tr[data-ri="${ri}"]`);
+  if(tr)tr.querySelector('.xg-num').style.background='rgba(37,99,235,0.2)';
+}
+
 function xgKeydownGlobal(e){
   const tbody=document.getElementById('xg-body');if(!tbody)return;
-  if(e.key!=='Delete'&&e.key!=='Backspace')return;
-  const focused=document.activeElement;
-  // input에 포커스 있으면 기본 동작
-  if(focused&&(focused.tagName==='INPUT'||focused.tagName==='SELECT'))return;
-  e.preventDefault();
-  const r1=Math.min(_xgSel.r,_xgSel.r2),r2=Math.max(_xgSel.r,_xgSel.r2);
-  const c1=Math.min(_xgSel.c,_xgSel.c2),c2=Math.max(_xgSel.c,_xgSel.c2);
-  tbody.querySelectorAll('tr[data-ri]').forEach(tr=>{
-    const ri=parseInt(tr.dataset.ri);
-    if(ri>=r1&&ri<=r2){
+  if(e.key==='Delete'||e.key==='Backspace'){
+    const focused=document.activeElement;
+    if(focused&&focused.tagName==='INPUT'&&focused.value.length>0&&_xgSel.r===_xgSel.r2&&_xgSel.c===_xgSel.c2)return;
+    e.preventDefault();
+    const r1=Math.min(_xgSel.r,_xgSel.r2),r2=Math.max(_xgSel.r,_xgSel.r2);
+    const c1=Math.min(_xgSel.c,_xgSel.c2),c2=Math.max(_xgSel.c,_xgSel.c2);
+    // 행 전체 선택(c0~c6)이면 행 삭제
+    if(c1===0&&c2===6){
+      const trs=Array.from(tbody.querySelectorAll('tr[data-ri]')).filter(tr=>{
+        const ri=parseInt(tr.dataset.ri);return ri>=r1&&ri<=r2;
+      });
+      trs.forEach(tr=>tr.remove());
+      // 번호 재정렬
+      Array.from(tbody.querySelectorAll('tr[data-ri]')).forEach((tr,i)=>{
+        tr.dataset.ri=i;
+        const num=tr.querySelector('.xg-num');
+        if(num)num.textContent=i+1;
+        num.onclick=()=>xgSelectRow(i);
+      });
+      _xgSel={r:Math.max(0,r1-1),c:0,r2:Math.max(0,r1-1),c2:0};
+      return;
+    }
+    // 셀 내용만 삭제
+    tbody.querySelectorAll('tr[data-ri]').forEach(tr=>{
+      const ri=parseInt(tr.dataset.ri);
+      if(ri<r1||ri>r2)return;
       tr.querySelectorAll('td[data-col]').forEach(td=>{
         const ci=parseInt(td.dataset.col);
-        if(ci>=c1&&ci<=c2&&ci!==2&&ci!==6){
-          const inp=td.querySelector('input');
-          if(inp&&!inp.readOnly){inp.value='';if(ci===0||ci===1||ci===5)xgCalcAmt(tr);}
-          if(ci===3){const sel=td.querySelector('select');if(sel)sel.value='Paid';}
-        }
+        if(ci<c1||ci>c2||ci===2||ci===6)return;
+        const inp=td.querySelector('input');
+        if(inp&&!inp.readOnly)inp.value='';
+        if(ci===3){const sel=td.querySelector('select');if(sel)sel.value='Paid';}
       });
-      if(r1<=ri&&ri<=r2)xgParseBarcode(tr);
-    }
-  });
+      xgParseBarcode(tr);xgCalcAmt(tr);
+    });
+  }
 }
 
 function xgParseBarcode(tr){
@@ -1466,9 +1497,9 @@ function xgParseBarcode(tr){
     if(retailEl)retailEl.textContent=prod.price?fmt(prod.price):'-';
     const cust=document.getElementById('rm-cust')?.value;
     const custObj=(_customers||[]).find(c=>c.name===cust);
-    const rate=custObj?.supply_rate||null;
+    const rate=parseFloat(custObj?.supply_rate)||null;
     if(priceEl){
-      priceEl.value=rate&&prod.price?Math.round(prod.price*rate/100):'';
+      priceEl.value=rate&&prod.price?Math.round(prod.price*(rate/100)):'';
       const rateSpan=priceEl.closest('td')?.querySelector('.xg-rate');
       if(rateSpan)rateSpan.textContent=rate?`(${rate}%)`:'';
     }
@@ -1497,6 +1528,30 @@ function xgHandlePaste(e){
   const rows=text.trim().split(/\r?\n/).map(r=>r.split('\t').map(c=>c.trim()));
   const startR=_xgSel.r>=0?_xgSel.r:0;
   const startC=_xgSel.c>=0?_xgSel.c:0;
+  const selR2=Math.max(_xgSel.r,_xgSel.r2);
+
+  // 단일 셀 복사 + 여러 행 선택 → 선택 범위 전체에 채우기
+  const isSingleCell=rows.length===1&&rows[0].length===1;
+  if(isSingleCell&&selR2>=startR){
+    const val=rows[0][0];
+    for(let ri=startR;ri<=selR2;ri++){
+      const tr=tbody.querySelector(`tr[data-ri="${ri}"]`);if(!tr)continue;
+      const td=tr.querySelector(`[data-col="${startC}"]`);if(!td)continue;
+      const inp=td.querySelector('input');
+      const sel=td.querySelector('select');
+      if(inp&&!inp.readOnly){
+        const cleaned=val.replace(/,/g,'');
+        inp.value=(inp.type==='number'&&!isNaN(parseFloat(cleaned)))?parseFloat(cleaned):val;
+      }
+      if(sel){
+        const matched=SALES_TYPES.find(s=>s.toLowerCase()===val.toLowerCase());
+        if(matched)sel.value=matched;
+      }
+      xgParseBarcode(tr);xgCalcAmt(tr);
+    }
+    toast(selR2>startR?`${selR2-startR+1}개 행에 채우기 완료!`:'붙여넣기 완료!');
+    return;
+  }
 
   // 행 부족하면 추가
   const need=startR+rows.length-tbody.rows.length;
@@ -1514,7 +1569,10 @@ function xgHandlePaste(e){
         const cleaned=val.replace(/,/g,'');
         inp.value=(inp.type==='number'&&!isNaN(parseFloat(cleaned)))?parseFloat(cleaned):val;
       }
-      if(sel&&val)sel.value=val;
+      if(sel&&val){
+        const matched=SALES_TYPES.find(s=>s.toLowerCase()===val.toLowerCase());
+        if(matched)sel.value=matched;
+      }
     });
     xgParseBarcode(tr);
     xgCalcAmt(tr);
@@ -1545,84 +1603,7 @@ function rmFillMgr(){
 function addRmItem(){} // legacy stub
 function addRmItemBulk(){xgAddRows(parseInt(document.getElementById('xg-bulk-n')?.value)||5);}
 
-function saveRawManual(){
-  const tbody=document.getElementById('rm-items');
-  if(!tbody)return;
-  const clip=e.clipboardData||window.clipboardData;
-  if(!clip)return;
-  const text=clip.getData('text');
-  if(!text)return;
 
-  const rows=text.trim().split(/\r?\n/).map(r=>r.split('\t'));
-  if(!rows.length)return;
-
-  // 바코드인지 먼저 체크 (8자리 이상 숫자)
-  const allBarcodes=rows.every(r=>r.length===1&&/^\d{8,}$/.test(r[0].trim()));
-
-  // 숫자만 있는 목록 + 바코드 아닌 경우 → 수량으로 처리
-  const allNums=!allBarcodes&&rows.every(r=>r.length===1&&/^\d+([,.]?\d+)?$/.test(r[0].trim()));
-  const focused=document.activeElement;
-  const focusedTr=focused?.closest('tr');
-
-  if(allNums&&focusedTr&&tbody.contains(focusedTr)){
-    const nums=rows.map(r=>parseInt(r[0].replace(/,/g,''))).filter(n=>!isNaN(n)&&n>0);
-    if(nums.length){
-      e.preventDefault();
-      const allTrs=Array.from(tbody.querySelectorAll('tr'));
-      const startIdx=allTrs.indexOf(focusedTr);
-      nums.forEach((n,i)=>{
-        let tr=allTrs[startIdx+i];
-        if(!tr){addRmItem();tr=tbody.lastElementChild;}
-        const ni=tr.querySelectorAll('input[type=number]')[0];
-        if(ni){ni.value=n;calcRmTotal(ni);}
-      });
-      toast(`${nums.length}개 수량 입력 완료!`);
-      return;
-    }
-  }
-
-  // 바코드 파싱
-  const parsed=rows.map(cols=>{
-    const trimmed=cols.map(c=>c.trim()).filter(c=>c);
-    if(!trimmed.length)return null;
-    let barcode='',qty=0,name='';
-    if(/^\d{8,}$/.test(trimmed[0])){
-      barcode=trimmed[0];
-      for(let i=1;i<trimmed.length;i++){
-        const cleaned=trimmed[i].replace(/,/g,'');
-        if(/^\d+(\.\d+)?$/.test(cleaned)&&!qty){qty=parseInt(cleaned);}
-        else if(trimmed[i]&&!name&&!/^\d/.test(cleaned)){name=trimmed[i];}
-      }
-      if(!qty)qty=0; // 수량 없으면 빈값
-    } else return null;
-    return {barcode,qty,name};
-  }).filter(Boolean);
-
-  if(!parsed.length)return;
-  e.preventDefault();
-
-  Array.from(tbody.querySelectorAll('tr')).forEach(tr=>{
-    const b=tr.querySelectorAll('input')[0]?.value.trim();
-    if(!b)tr.remove();
-  });
-
-  parsed.forEach(({barcode,qty,name})=>{
-    addRmItem();
-    const tr=tbody.lastElementChild;
-    const allInputs=tr.querySelectorAll('input');
-    const numInputs=tr.querySelectorAll('input[type=number]');
-    allInputs[0].value=barcode;
-    rmParseBarcode(allInputs[0]);
-    if(name&&!allInputs[1].value)allInputs[1].value=name;
-    if(qty){
-      numInputs[0].value=qty;
-      calcRmTotal(numInputs[0]);
-    } else {
-      numInputs[0].value='';
-    }
-  });
-  toast(`${parsed.length}개 품목 붙여넣기 완료!`);
-}
 
 function rmTabMove(e,el,colIdx){
   if(e.key==='Enter'||e.key==='Tab'){
@@ -1704,25 +1685,9 @@ async function saveRawManual(){
   const sdate=document.getElementById('rm-sdate')?.value||null;
   if(!cust||!odate){toast('거래처와 발주일은 필수입니다.');return;}
 
-  const items=[];
-  let hasErr=false;
-  document.querySelectorAll('#rm-items tr').forEach(tr=>{
-    const inputs=tr.querySelectorAll('input');
-    const sel=tr.querySelector('select');
-    const allInputs=tr.querySelectorAll('input');
-    const numInputs=tr.querySelectorAll('input[type=number]');
-    const barcode=allInputs[0]?.value.trim();
-    const name=allInputs[1]?.value.trim();
-    const qty=parseFloat(numInputs[0]?.value)||0;
-    if(!barcode){hasErr=true;allInputs[0].style.borderColor='var(--red)';return;}
-    if(!qty){hasErr=true;numInputs[0].style.borderColor='var(--red)';return;}
-    items.push({
-      barcode, name:name||barcode,
-      salesType:sel?.value||'Paid',
-      qty, price:parseFloat(numInputs[1]?.value)||0
-    });
-  });
-  if(hasErr){toast('바코드와 수량은 필수값입니다.');return;}
+  const items=xgGetItems();
+  const invalid=items.filter(i=>!i.barcode||!i.qty);
+  if(invalid.length){toast('바코드와 수량은 필수값입니다.');return;}
   if(!items.length){toast('품목을 1개 이상 입력하세요.');return;}
 
   const editId=window._editRawInvId||null;
