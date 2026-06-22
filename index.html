@@ -1,9 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <script>
-const ANTHROPIC_API_KEY='sk-ant-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';
-</script>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>해외영업 관리 시스템 | Entropy Makeup</title>
@@ -596,7 +593,7 @@ tr:hover td{background:var(--bg3)}
 </div>
 </div>
 <script>
-const ANTHROPIC_API_KEY='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'; // ← 새 API Key로 교체하세요
+const ANTHROPIC_API_KEY='YOUR_API_KEY'; // ← 새 API Key로 교체하세요
 
 // API Key 보안 경고
 if(ANTHROPIC_API_KEY && ANTHROPIC_API_KEY!=='YOUR_API_KEY'){
@@ -3454,7 +3451,7 @@ async function delProd(id){if(!confirm('삭제하시겠습니까?'))return;await
   await loadAll();
   go('dash');
   // API Key 경고
-  if(ANTHROPIC_API_KEY && ANTHROPIC_API_KEY!=='YOUR_API_KEY'){
+  if(ANTHROPIC_API_KEY && ANTHROPIC_API_KEY!=='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'){
     setTimeout(()=>toast('⚠️ API Key 노출 주의! 키가 유출되면 console.anthropic.com에서 즉시 삭제하세요.'),2000);
   }
 })();
