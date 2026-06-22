@@ -722,6 +722,45 @@ function go(page){
   ({dash:renderDash,upload:renderUpload,invoices:renderInvoices,raw:renderRaw,monthly:renderMonthly,forecast:renderForecast,tax:renderTax,customers:renderCustomers,docs:renderDocs,products:renderProducts})[page]?.();
 }
 
+// ── 대시보드 AI 인사이트 ──
+async function runDashAI(){
+  if(!ANTHROPIC_API_KEY||ANTHROPIC_API_KEY==='YOUR_API_KEY'){
+    alert('API Key를 설정해주세요.');return;
+  }
+  const custName=document.getElementById('dash-ai-cust')?.value;
+  if(!custName){alert('거래처를 선택해주세요.');return;}
+  const el=document.getElementById('dash-ai-result');
+  if(!el)return;
+  el.innerHTML='<span style="color:var(--text3)">🤖 분석 중...</span>';
+
+  const invs=_invoices.filter(i=>i.customer===custName).sort((a,b)=>(a.order_date||'').localeCompare(b.order_date||''));
+  const itemPattern={};
+  invs.forEach(inv=>{
+    getInvItems(inv.id).filter(i=>i.sales_type==='Paid').forEach(it=>{
+      if(!itemPattern[it.name])itemPattern[it.name]={dates:[],qtys:[]};
+      itemPattern[it.name].dates.push(inv.order_date);
+      itemPattern[it.name].qtys.push(it.qty);
+    });
+  });
+
+  const c=_customers.find(x=>x.name===custName)||{};
+  const prompt=`해외영업 거래처 "${custName}" 분석 요청.\n\n거래처 정보: 국가=${c.country||'-'}, 구분=${c.tax||'-'}, 총 인보이스=${invs.length}건\n\n품목별 발주 이력:\n${Object.entries(itemPattern).slice(0,8).map(([item,{dates,qtys}])=>`- ${item}: ${dates.slice(-3).join(', ')} (수량: ${qtys.slice(-3).join(', ')})`).join('\n')}\n\n다음을 한국어 3문장으로 분석해주세요:\n1. 발주 패턴/주기\n2. 다음 발주 예상 시점과 추천 품목\n3. 매출 성장 인사이트`;
+
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:400,messages:[{role:'user',content:prompt}]})
+    });
+    const data=await res.json();
+    if(data.error)throw new Error(data.error.message);
+    const txt=data.content?.[0]?.text||'분석 결과 없음';
+    el.innerHTML=txt.replace(/\n/g,'<br/>');
+  }catch(e){
+    el.innerHTML='<span style="color:var(--red)">오류: '+e.message+'</span>';
+  }
+}
+
 // ─── DASHBOARD ───
 function renderDash(){
   document.getElementById('topbar-actions').innerHTML='<button class="btn" style="background:#4A154B;color:#fff;border-color:#4A154B" onclick="openWeeklyReport()"><i class="ti ti-brand-slack"></i> 기간별 보고서</button>';
