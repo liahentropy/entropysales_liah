@@ -192,9 +192,6 @@ tr:hover td{background:var(--bg3)}
 .xg tr td.selected,.xg tr:hover td.selected{background:rgba(37,99,235,0.12)}
 
 </style>
-  <script>
-const ANTHROPIC_API_KEY='sk-ant-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';
-</script>
 </head>
 <body>
   </div>
@@ -808,9 +805,9 @@ function renderDash(){
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
     <div class="card"><div class="card-hd"><h3>거래처별 매출</h3><span class="alink" onclick="go('monthly')">월별 보기</span></div>
-    <div style="padding:9px 13px">${custE.length?`<div class="bar-wrap">${custE.map(([k,v])=>`<div class="bar-row"><div class="bar-lbl">${k}</div><div class="bar-bg"><div class="bar-fill" style="width:${Math.round(v/maxC*100)}%;background:#AFA9EC"></div></div><div class="bar-val">${fmt(v)}</div></div>`).join('')}</div>`:'<div class="est"><i class="ti ti-chart-bar"></i>데이터 없음</div>'}</div></div>
+    <div style="padding:9px 13px">${custE.length?`<div class="bar-wrap">${custE.map(([k,v])=>`<div class="bar-row"><div class="bar-lbl">${k}</div><div class="bar-bg"><div class="bar-fill" style="width:${Math.round(v/maxC*100)}%;background:#1D4ED8"></div></div><div class="bar-val">${fmt(v)}</div></div>`).join('')}</div>`:'<div class="est"><i class="ti ti-chart-bar"></i>데이터 없음</div>'}</div></div>
     <div class="card"><div class="card-hd"><h3>담당자별 매출</h3></div>
-    <div style="padding:9px 13px">${mgrE.length?`<div class="bar-wrap">${mgrE.map(([k,v])=>`<div class="bar-row"><div class="bar-lbl">${k}</div><div class="bar-bg"><div class="bar-fill" style="width:${Math.round(v/maxM*100)}%;background:#5DCAA5"></div></div><div class="bar-val">${fmt(v)}</div></div>`).join('')}</div>`:'<div class="est"><i class="ti ti-users"></i>데이터 없음</div>'}</div></div>
+    <div style="padding:9px 13px">${mgrE.length?`<div class="bar-wrap">${mgrE.map(([k,v])=>`<div class="bar-row" style="justify-content:center"><div class="bar-lbl" style="text-align:center">${k}</div><div class="bar-bg"><div class="bar-fill" style="width:${Math.round(v/maxM*100)}%;background:#2563EB"></div></div><div class="bar-val">${fmt(v)}</div></div>`).join('')}</div>`:'<div class="est"><i class="ti ti-users"></i>데이터 없음</div>'}</div></div>
   </div>
   <div class="card">
     <div class="card-hd">
@@ -856,7 +853,7 @@ function renderDash(){
       const top5Total=top5.reduce((a,[,v])=>a+v,0);
       window._dashDonutChart=new Chart(dc,{
         type:'doughnut',
-        data:{labels:top5.map(([k])=>k),datasets:[{data:top5.map(([,v])=>v),backgroundColor:COLORS.slice(0,top5.length),borderColor:isDark?'#0F1C3F':'#fff',borderWidth:1,hoverOffset:8}]},
+        data:{labels:top5.map(([k])=>k),datasets:[{data:top5.map(([,v])=>v),backgroundColor:COLORS.slice(0,top5.length),borderColor:isDark?'#8A9BBB':'#4A5B78',borderWidth:1,hoverOffset:8}]},
         options:{responsive:true,maintainAspectRatio:false,cutout:'62%',layout:{padding:10},plugins:{legend:{display:false},tooltip:{...tooltipCfg,callbacks:{label:ctx=>Math.round(ctx.raw/top5Total*100)+'%  '+fmt(ctx.raw)}}}}
       });
       if(dl){dl.innerHTML=top5.map(([k,v],i)=>`<div style="display:flex;align-items:center;gap:5px;margin-bottom:5px"><span style="width:8px;height:8px;border-radius:2px;background:${COLORS[i]};flex-shrink:0"></span><span style="color:${textC};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;margin-right:4px">${k}</span><span style="font-weight:600;font-size:11px;white-space:nowrap">${Math.round(v/top5Total*100)}%</span></div>`).join('');}
@@ -3454,7 +3451,7 @@ async function delProd(id){if(!confirm('삭제하시겠습니까?'))return;await
   await loadAll();
   go('dash');
   // API Key 경고
-  if(ANTHROPIC_API_KEY && ANTHROPIC_API_KEY!=='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'){
+  if(ANTHROPIC_API_KEY && ANTHROPIC_API_KEY!=='YOUR_API_KEY'){
     setTimeout(()=>toast('⚠️ API Key 노출 주의! 키가 유출되면 console.anthropic.com에서 즉시 삭제하세요.'),2000);
   }
 })();
