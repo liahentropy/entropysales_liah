@@ -583,6 +583,15 @@ tr:hover td{background:var(--bg3)}
       </table>
     </div>
     <div id="view-inv-note" style="margin-top:8px;font-size:11px;color:var(--text2)"></div>
+    <div style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:11px;font-weight:600;color:var(--text2)">📎 첨부 서류 (BL, 구매확인서 등)</span>
+        <label style="cursor:pointer" class="btn btn-sm"><i class="ti ti-upload"></i> 파일 업로드
+          <input type="file" id="inv-doc-upload" style="display:none" accept=".pdf,.xlsx,.xls,.doc,.docx,.jpg,.png,.jpeg" onchange="uploadInvDoc(this)"/>
+        </label>
+      </div>
+      <div id="inv-doc-list" style="font-size:11px;color:var(--text3)">첨부 파일 없음</div>
+    </div>
   </div>
   <div class="mft">
     <button class="btn btn-red" id="view-del-btn" style="margin-right:auto"><i class="ti ti-trash"></i> 삭제</button>
@@ -1350,6 +1359,47 @@ function exportInvoices(){
   toast('다운로드 완료!');
 }
 
+
+// ── 인보이스 서류 첨부 ──
+let _currentInvId=null;
+
+async function loadInvDocs(invId){
+  _currentInvId=invId;
+  const el=document.getElementById('inv-doc-list');if(!el)return;
+  el.innerHTML='불러오는 중...';
+  try{
+    const {data,error}=await sb.storage.from('invoice-docs').list(invId+'/');
+    if(error||!data||!data.length){el.innerHTML='<span style="color:var(--text3)">첨부 파일 없음</span>';return;}
+    el.innerHTML=data.map(f=>{
+      const url=sb.storage.from('invoice-docs').getPublicUrl(invId+'/'+f.name).data.publicUrl;
+      return`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid var(--border)">
+        <i class="ti ti-file" style="color:var(--purple)"></i>
+        <a href="${url}" target="_blank" style="flex:1;color:var(--text);font-size:11px;text-decoration:none">${f.name}</a>
+        <span class="alink" style="color:var(--red);font-size:10px" onclick="deleteInvDoc('${invId}','${f.name}')">삭제</span>
+      </div>`;
+    }).join('');
+  }catch(e){el.innerHTML='<span style="color:var(--red)">오류: '+e.message+'</span>';}
+}
+
+async function uploadInvDoc(input){
+  if(!input.files.length||!_currentInvId)return;
+  const file=input.files[0];
+  const path=_currentInvId+'/'+file.name;
+  toast('업로드 중...');
+  const{error}=await sb.storage.from('invoice-docs').upload(path,file,{upsert:true});
+  if(error){toast('업로드 오류: '+error.message);return;}
+  toast('✅ 업로드 완료!');
+  loadInvDocs(_currentInvId);
+  input.value='';
+}
+
+async function deleteInvDoc(invId,name){
+  if(!confirm(name+'을 삭제할까요?'))return;
+  await sb.storage.from('invoice-docs').remove([invId+'/'+name]);
+  toast('삭제됐습니다.');
+  loadInvDocs(invId);
+}
+
 // ─── INVOICES ───
 function renderInvoices(){
   document.getElementById('topbar-actions').innerHTML=`<button class="btn btn-primary" onclick="openNewInv()"><i class="ti ti-plus"></i> 직접 등록</button><button class="btn btn-green" onclick="exportInvoices()"><i class="ti ti-file-spreadsheet"></i> Excel 다운로드</button>`;
@@ -1361,7 +1411,7 @@ function renderInvoices(){
     <select id="fi-mg" onchange="filterInv()"><option value="">담당자 전체</option>${MGRS.map(m=>`<option>${m}</option>`).join('')}</select>
   </div>
   <div class="card"><div class="tw"><table>
-    <thead><tr><th>인보이스 번호</th><th>거래처</th><th>담당자</th><th>발주일</th><th style="text-align:right">매출</th><th style="text-align:right">FOC</th><th>입금 ✎</th><th>출고 ✎</th></tr></thead>
+    <thead><tr><th>인보이스 번호</th><th>거래처</th><th>담당자</th><th>발주일</th><th style="text-align:right">매출</th><th style="text-align:right">FOC</th><th>입금 ✎</th><th>출고 ✎</th><th>Tracking No.</th></tr></thead>
     <tbody id="inv-tbody"></tbody>
   </table></div></div>
   <div id="inv-pagination"></div>`;
@@ -1395,12 +1445,15 @@ function filterInv(page){
       <td style="font-size:11px">${v.order_date||'-'}</td>
       <td style="text-align:right;font-weight:600">${fmt(rev)}</td>
       <td style="text-align:right;color:var(--red);font-size:11px">${focAmt>0?fmt(focAmt):'-'}</td>
-      <td style="${rev>0?'cursor:pointer':''}" ${rev>0?`onclick="togglePayStatus('${v.id}','${v.pay_date||''}','${v.status||''}')"`:''}>
+      <td style="white-space:nowrap;${rev>0?'cursor:pointer':''}" ${rev>0?`onclick="togglePayStatus('${v.id}','${v.pay_date||''}','${v.status||''}')"`:''}>
         ${rev<=0?`<span style="color:var(--text3)">-</span>`:v.status==='Paid'
-          ?`<span class="badge bg-green">입금완료</span><br><span style="font-size:9px;color:var(--text3)">${v.pay_date||''}</span>`
+          ?`<span class="badge bg-green">입금완료</span> <span style="font-size:9px;color:var(--text3)">${v.pay_date||''}</span>`
           :`<span class="badge bg-amber">미입금</span>`}
       </td>
       <td><select class="ss s${(v.ship_status||'준비중').replace(/\s/g,'')}" onchange="updShipSt('${v.id}',this.value,this)"><option ${!v.ship_status||v.ship_status==='준비중'?'selected':''}>준비중</option><option ${v.ship_status==='출고완료'?'selected':''}>출고완료</option></select></td>
+      <td onclick="event.stopPropagation()"><input type="text" placeholder="-" value="${v.tracking_num||''}"
+        style="border:none;background:transparent;font-size:11px;width:120px;color:var(--text);outline:none;border-bottom:1px solid var(--border);padding:2px 4px"
+        onchange="updTracking('${v.id}',this.value)"/></td>
     </tr>`;
   }).join('');
   // 페이지네이션
@@ -1418,6 +1471,14 @@ function filterInv(page){
       <span style="font-size:11px;color:var(--text3);margin-left:8px">${totalPages}페이지</span>
     </div>`;
   }
+}
+
+
+async function updTracking(id,val){
+  await sb.from('invoices').update({tracking_num:val}).eq('id',id);
+  const inv=_invoices.find(i=>i.id===id);
+  if(inv)inv.tracking_num=val;
+  toast('Tracking No. 저장됐습니다!');
 }
 
 async function togglePayStatus(id, currentDate, currentStatus){
@@ -1577,6 +1638,8 @@ function viewInv(id){
   document.getElementById('view-del-btn').onclick=()=>{cm('m-inv-view');delInv(id);};
   document.getElementById('view-dl-btn').onclick=()=>{cm('m-inv-view');downloadMeongse(v);};
   document.getElementById('view-edit-btn').onclick=()=>{cm('m-inv-view');editInv(id);};
+  // 첨부 파일 목록 로드
+  loadInvDocs(id);
   om('m-inv-view');
 }
 
