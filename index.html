@@ -806,6 +806,25 @@ async function loadAll(){
     if(data.length<PAGE)break;
     from+=PAGE;
   }
+  // 인보이스 첨부파일 전체 프리로드 (백그라운드)
+  preloadAllInvFiles();
+}
+
+async function preloadAllInvFiles(){
+  if(!_invoices.length)return;
+  // 10개씩 병렬로 로드
+  const ids=_invoices.map(v=>v.id);
+  const CHUNK=10;
+  for(let i=0;i<ids.length;i+=CHUNK){
+    const chunk=ids.slice(i,i+CHUNK);
+    await Promise.all(chunk.map(async id=>{
+      if(_invFileCache[id]!==undefined)return;
+      try{
+        const{data,error}=await sb.storage.from('invoice-docs').list(id+'/');
+        _invFileCache[id]=(error||!data)?[]:data.filter(f=>f.name&&f.name!=='.emptyFolderPlaceholder');
+      }catch(e){_invFileCache[id]=[];}
+    }));
+  }
 }
 
 function toggleSidebar(){
@@ -1496,7 +1515,7 @@ async function invDropFiles(files){
 async function uploadInvDoc(input){
   const file=input?.files?.[0]||input;
   if(!file||!_currentInvId)return;
-  const path=_currentInvId+'/'+Date.now()+'_'+file.name;
+  const path=_currentInvId+'/'+file.name;
   toast('업로드 중...');
   const{data,error}=await sb.storage.from('invoice-docs').upload(path,file,{upsert:true});
   if(error){
@@ -3564,7 +3583,7 @@ async function saveDoc(){
   if(file){
     if(prog){prog.style.display='block';prog.textContent='파일 업로드 중...';}
     const ext=file.name.split('.').pop();
-    const path='docs/'+Date.now()+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+    const path='docs/'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
     const{data:upData,error:upErr}=await sb.storage.from('documents').upload(path,file);
     if(upErr){alert('파일 업로드 실패: '+upErr.message);if(prog)prog.style.display='none';return;}
     const{data:urlData}=sb.storage.from('documents').getPublicUrl(path);
