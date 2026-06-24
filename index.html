@@ -4216,7 +4216,8 @@ function showMainApp(user){
 async function signOut(){
   if(!confirm('로그아웃 하시겠습니까?')) return;
   await sb.auth.signOut();
-  location.reload();
+  _appLoaded = false;
+  showLoginScreen();
 }
 
 // auth 상태 변화 감지 (OAuth 콜백 후 자동 처리)
