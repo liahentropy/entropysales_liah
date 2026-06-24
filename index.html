@@ -280,6 +280,13 @@ tr:hover td{background:var(--bg3)}
     <div class="logo">
       <h1>해외영업 관리</h1>
       <p>Entropy Makeup 2026</p>
+      <div id="sidebar-user" style="margin-top:7px;padding-top:7px;border-top:0.5px solid rgba(255,255,255,0.08);display:none;align-items:center;gap:6px">
+        <img id="sidebar-avatar" src="" style="width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0"/>
+        <div style="min-width:0;flex:1">
+          <div id="sidebar-name" style="font-size:10px;color:rgba(255,255,255,0.8);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+          <div id="sidebar-email" style="font-size:9px;color:rgba(255,255,255,0.35);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px"></div>
+        </div>
+      </div>
     </div>
     <div class="ns">메인</div>
     <div class="ni active" onclick="go('dash')" id="nav-dash"><i class="ti ti-layout-dashboard"></i>대시보드</div>
@@ -4149,6 +4156,20 @@ function showLoginScreen(){
 function showMainApp(user){
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('main-app').style.display = 'flex';
+  // 사이드바 유저 정보
+  const sidebarUser = document.getElementById('sidebar-user');
+  const sidebarAvatar = document.getElementById('sidebar-avatar');
+  const sidebarName = document.getElementById('sidebar-name');
+  const sidebarEmail = document.getElementById('sidebar-email');
+  if(sidebarUser){
+    const name = user.user_metadata?.full_name || user.email?.split('@')[0] || '';
+    const email = user.email || '';
+    const avatar = user.user_metadata?.avatar_url || '';
+    if(sidebarName) sidebarName.textContent = name;
+    if(sidebarEmail) sidebarEmail.textContent = email;
+    if(sidebarAvatar && avatar){ sidebarAvatar.src = avatar; sidebarAvatar.style.display='block'; }
+    sidebarUser.style.display = 'flex';
+  }
   // 상단 바에 유저 정보 + 로그아웃 버튼
   const topbarActions = document.getElementById('topbar-actions');
   if(topbarActions && !document.getElementById('user-info-btn')){
