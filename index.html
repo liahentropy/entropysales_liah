@@ -4236,6 +4236,14 @@ sb.auth.onAuthStateChange(async (event, session) => {
   }
 });
 
+// ─── Supabase 콜드 스타트 방지 (5분마다 ping) ───
+function keepAlive(){
+  setInterval(async()=>{
+    try{ await sb.from('app_settings').select('key').limit(1); }
+    catch(e){}
+  }, 5 * 60 * 1000); // 5분
+}
+
 // ─── 초기화 ───
 (async()=>{
   const { data: { session } } = await sb.auth.getSession();
@@ -4255,6 +4263,8 @@ sb.auth.onAuthStateChange(async (event, session) => {
   showMainApp(session.user);
   await loadAll();
   go('dash');
+  keepAlive();
+  keepAlive();
 })();
 </script>
 </body>
