@@ -155,27 +155,61 @@ tr:hover td{background:var(--bg3)}
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99}
 .sidebar-overlay.open{display:block}
 
+/* ── 태블릿 (1024px 이하) ── */
+@media(max-width:1024px){
+  .sidebar{width:180px}
+  .kpi-grid{grid-template-columns:repeat(3,1fr)!important}
+}
+
+/* ── 모바일/태블릿 (768px 이하) ── */
 @media(max-width:768px){
   #hamburger{display:flex;align-items:center}
   .sidebar{position:fixed;left:-200px;top:0;bottom:0;z-index:100;transition:left .25s;box-shadow:2px 0 12px rgba(0,0,0,.15)}
   .sidebar.open{left:0}
   .app{flex-direction:column}
   .main{height:100vh}
-  .topbar{padding:8px 12px}
-  .content{padding:10px 12px}
-  .kpi-grid{grid-template-columns:repeat(2,1fr)!important}
+  .topbar{padding:8px 12px;gap:6px}
+  .content{padding:8px 10px}
+  .kpi-grid{grid-template-columns:repeat(2,1fr)!important;gap:8px}
   .modal{width:96vw!important;max-width:96vw!important;margin:8px auto}
-  .modal-bg{padding-top:8px}
+  .modal.wide{width:96vw!important;max-width:96vw!important}
+  .modal-bg{padding:8px 4px;align-items:flex-start}
   .frow{grid-template-columns:1fr!important}
-  .frow.c3,.frow.c4{grid-template-columns:1fr 1fr!important}
-  .fb{flex-wrap:wrap}
-  .fb input,.fb select{font-size:12px}
+  .frow.c2,.frow.c3,.frow.c4{grid-template-columns:1fr 1fr!important}
+  .fb{flex-wrap:wrap;gap:6px}
+  .fb input,.fb select{font-size:12px;min-width:120px}
   table{font-size:11px}
   .tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .card{margin-bottom:8px}
-  .topbar-actions{gap:4px}
+  .card{margin-bottom:8px;border-radius:8px}
+  .topbar-actions{gap:4px;flex-wrap:wrap}
   .btn{padding:5px 8px;font-size:11px}
-  .btn-sm{padding:3px 6px}
+  .btn-sm{padding:3px 6px;font-size:10px}
+  .bar-row{gap:6px}
+  .bar-lbl{width:90px;font-size:11px}
+  .bar-val{font-size:11px;min-width:80px}
+  .month-grid{grid-template-columns:repeat(3,1fr)!important}
+  /* 달력 모바일 */
+  .cal-td{height:70px!important}
+  /* 인보이스 테이블 컬럼 숨기기 */
+  .inv-hide-mobile{display:none!important}
+}
+
+/* ── 소형 모바일 (480px 이하) ── */
+@media(max-width:480px){
+  .kpi-grid{grid-template-columns:1fr 1fr!important;gap:6px}
+  .kpi{padding:10px 12px}
+  .kpi .val{font-size:16px}
+  .content{padding:6px 8px}
+  .topbar{padding:6px 10px}
+  .topbar-title{font-size:13px}
+  .frow.c2{grid-template-columns:1fr!important}
+  .month-grid{grid-template-columns:repeat(2,1fr)!important}
+  .card-hd{padding:8px 12px}
+  .card-hd h3{font-size:12px}
+  /* 모달 전체화면 */
+  .modal-bg{padding:0;align-items:flex-end}
+  .modal{border-radius:16px 16px 0 0!important;max-height:90vh;overflow-y:auto}
+  .btn{padding:6px 10px;font-size:12px}
 }
 
 /* ── 엑셀 그리드 ── */
@@ -215,6 +249,8 @@ tr:hover td{background:var(--bg3)}
     <div class="ni" onclick="go('tax')" id="nav-tax"><i class="ti ti-receipt-2"></i>세금계산서</div>
     <div class="ns">거래처</div>
     <div class="ni" onclick="go('customers')" id="nav-customers"><i class="ti ti-building-store"></i>거래처 마스터</div>
+    <div class="ns">일정</div>
+    <div class="ni" onclick="go('calendar')" id="nav-calendar"><i class="ti ti-calendar"></i>달력</div>
     <div class="ni" onclick="go('docs')" id="nav-docs"><i class="ti ti-folder"></i>서류 관리</div>
     <div class="ns">설정</div>
     <div class="ni" onclick="go('products')" id="nav-products"><i class="ti ti-box"></i>제품 목록</div>
@@ -363,6 +399,35 @@ tr:hover td{background:var(--bg3)}
   <div class="mft">
     <button class="btn" onclick="cm('m-prod-bulk')">취소</button>
     <button class="btn btn-primary" onclick="saveBulkProd()"><i class="ti ti-device-floppy"></i> 일괄 저장</button>
+  </div>
+</div>
+</div>
+
+<!-- 일정 등록 모달 -->
+<div class="modal-bg" id="m-sched">
+<div class="modal" style="width:420px">
+  <div class="mhd"><h2>일정 등록</h2><button class="btn btn-sm" onclick="cm('m-sched')"><i class="ti ti-x"></i></button></div>
+  <div class="mbody">
+    <div class="frow c2">
+      <div class="fg"><label>날짜 *</label><input id="sched-date" type="date"/></div>
+      <div class="fg"><label>구분 *</label>
+        <select id="sched-type">
+          <option>미팅</option>
+          <option>팝업</option>
+          <option>입고</option>
+          <option>기타</option>
+        </select>
+      </div>
+    </div>
+    <div class="frow c1"><div class="fg"><label>제목 *</label><input id="sched-title" placeholder="일정 제목"/></div></div>
+    <div class="frow c1"><div class="fg"><label>거래처</label>
+      <select id="sched-cust"><option value="">선택 안함</option></select>
+    </div></div>
+    <div class="frow c1"><div class="fg"><label>메모</label><input id="sched-note" placeholder="추가 내용..."/></div></div>
+  </div>
+  <div class="mft">
+    <button class="btn" onclick="cm('m-sched')">취소</button>
+    <button class="btn btn-primary" onclick="saveSched()"><i class="ti ti-check"></i> 저장</button>
   </div>
 </div>
 </div>
@@ -647,7 +712,7 @@ const DOC_TYPES = ['사업자등록증','통장사본','LOA','인증서','제품
 const SUPPLIER = {name:'㈜브랜드지놈',addr:'서울특별시 용산구 독서당로 94, 4층',ceo:'박소희',contact:'박주현',phone:'010-3170-3423',bizType:'도매 및 소매업'};
 
 // ─── 캐시 ───
-let _customers=[], _products=[], _invoices=[], _items=[], _stocks=[], _docs=[];
+let _customers=[], _products=[], _invoices=[], _items=[], _stocks=[], _docs=[], _schedules=[];
 let _editInv=null, _editCust=null, _editProd=null;
 let _uploadData=null;
 
@@ -684,18 +749,20 @@ function fillCustSel(id,sel=''){
 
 // ─── 데이터 로드 ───
 async function loadAll(){
-  const [c,p,inv,s,d]=await Promise.all([
+  const [c,p,inv,s,d,sch]=await Promise.all([
     sb.from('customers').select('*').order('name'),
     sb.from('products').select('*').order('name'),
     sb.from('invoices').select('*').order('order_date',{ascending:false}),
     sb.from('stocks').select('*').order('date'),
-    sb.from('documents').select('*').order('created_at',{ascending:false})
+    sb.from('documents').select('*').order('created_at',{ascending:false}),
+    sb.from('schedules').select('*').order('date')
   ]);
   _customers=c.data||[];
   _products=p.data||[];
   _invoices=inv.data||[];
   _stocks=s.data||[];
   _docs=d.data||[];
+  _schedules=sch.data||[];
 
   // invoice_items 전체 로드 (Supabase 1000개 limit 우회)
   _items=[];
@@ -721,9 +788,9 @@ function closeSidebar(){
 function go(page){
   document.querySelectorAll('.ni').forEach(el=>el.classList.remove('active'));
   const n=document.getElementById('nav-'+page);if(n)n.classList.add('active');
-  const titles={dash:'대시보드',upload:'파일 업로드 → 인보이스 생성',invoices:'인보이스',raw:'RAW 데이터',monthly:'월별 현황',forecast:'재고 포캐스팅',tax:'세금계산서',customers:'거래처 마스터',docs:'서류 관리',products:'제품 목록'};
+  const titles={dash:'대시보드',upload:'파일 업로드 → 인보이스 생성',invoices:'인보이스',raw:'RAW 데이터',monthly:'월별 현황',forecast:'재고 포캐스팅',tax:'세금계산서',customers:'거래처 마스터',docs:'서류 관리',products:'제품 목록',calendar:'달력'};
   document.getElementById('page-title').textContent=titles[page]||page;
-  ({dash:renderDash,upload:renderUpload,invoices:renderInvoices,raw:renderRaw,monthly:renderMonthly,forecast:renderForecast,tax:renderTax,customers:renderCustomers,docs:renderDocs,products:renderProducts})[page]?.();
+  ({dash:renderDash,upload:renderUpload,invoices:renderInvoices,raw:renderRaw,monthly:renderMonthly,forecast:renderForecast,tax:renderTax,customers:renderCustomers,docs:renderDocs,products:renderProducts,calendar:renderCalendar})[page]?.();
 }
 
 
@@ -1371,7 +1438,8 @@ async function loadInvDocs(invId){
     const {data,error}=await sb.storage.from('invoice-docs').list(invId+'/');
     if(error||!data||!data.length){el.innerHTML='<span style="color:var(--text3)">첨부 파일 없음</span>';return;}
     el.innerHTML=data.map(f=>{
-      const url=sb.storage.from('invoice-docs').getPublicUrl(invId+'/'+f.name).data.publicUrl;
+      const {data:urlData}=sb.storage.from('invoice-docs').getPublicUrl(invId+'/'+f.name);
+      const url=urlData?.publicUrl||'';
       return`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid var(--border)">
         <i class="ti ti-file" style="color:var(--purple)"></i>
         <a href="${url}" target="_blank" style="flex:1;color:var(--text);font-size:11px;text-decoration:none">${f.name}</a>
@@ -1384,10 +1452,10 @@ async function loadInvDocs(invId){
 async function uploadInvDoc(input){
   if(!input.files.length||!_currentInvId)return;
   const file=input.files[0];
-  const path=_currentInvId+'/'+file.name;
+  const path=_currentInvId+'/'+Date.now()+'_'+file.name;
   toast('업로드 중...');
-  const{error}=await sb.storage.from('invoice-docs').upload(path,file,{upsert:true});
-  if(error){toast('업로드 오류: '+error.message);return;}
+  const{data,error}=await sb.storage.from('invoice-docs').upload(path,file,{upsert:true});
+  if(error){toast('업로드 오류: '+error.message);console.error(error);return;}
   toast('✅ 업로드 완료!');
   loadInvDocs(_currentInvId);
   input.value='';
@@ -1411,7 +1479,7 @@ function renderInvoices(){
     <select id="fi-mg" onchange="filterInv()"><option value="">담당자 전체</option>${MGRS.map(m=>`<option>${m}</option>`).join('')}</select>
   </div>
   <div class="card"><div class="tw"><table>
-    <thead><tr><th>인보이스 번호</th><th>거래처</th><th>담당자</th><th>발주일</th><th style="text-align:right">매출</th><th style="text-align:right">FOC</th><th>입금 ✎</th><th>출고 ✎</th><th>Tracking No.</th></tr></thead>
+    <thead><tr><th>인보이스 번호</th><th>거래처</th><th class="inv-hide-mobile">담당자</th><th class="inv-hide-mobile">발주일</th><th style="text-align:right">매출</th><th style="text-align:right" class="inv-hide-mobile">FOC</th><th>입금 ✎</th><th>출고 ✎</th><th class="inv-hide-mobile">Tracking No.</th></tr></thead>
     <tbody id="inv-tbody"></tbody>
   </table></div></div>
   <div id="inv-pagination"></div>`;
@@ -3158,6 +3226,151 @@ function exportCust(){
 function openNewCust(){_editCust=null;['c-name','c-code','c-addr','c-biz','c-ceo','c-contact','c-phone','c-email','c-biz-type','c-note','c-supply-rate'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});document.getElementById('c-mgr').value='liah';document.getElementById('c-tax').value='영세';document.getElementById('c-country').value='';document.getElementById('c-status').value='거래중';document.getElementById('m-cust-title').textContent='거래처 등록';om('m-cust');}
 function editCust(id){const c=_customers.find(x=>x.id===id);if(!c)return;_editCust=c;document.getElementById('c-name').value=c.name;document.getElementById('c-code').value=c.code||'';document.getElementById('c-mgr').value=c.mgr||'liah';document.getElementById('c-country').value=c.country||'';document.getElementById('c-tax').value=c.tax||'영세';document.getElementById('c-biz').value=c.biz||'';document.getElementById('c-addr').value=c.addr||'';document.getElementById('c-ceo').value=c.ceo||'';document.getElementById('c-contact').value=c.contact||'';document.getElementById('c-phone').value=c.phone||'';document.getElementById('c-email').value=c.email||'';document.getElementById('c-biz-type').value=c.biz_type||'';document.getElementById('c-note').value=c.note||'';document.getElementById('c-status').value=c.status||'거래중';document.getElementById('c-supply-rate').value=c.supply_rate||'';document.getElementById('m-cust-title').textContent='거래처 수정';om('m-cust');}
 async function saveCust(){const name=document.getElementById('c-name').value.trim();if(!name){alert('업체명 필수');return;}const obj={name,code:document.getElementById('c-code').value,mgr:document.getElementById('c-mgr').value,country:document.getElementById('c-country').value,tax:document.getElementById('c-tax').value,biz:document.getElementById('c-biz').value,addr:document.getElementById('c-addr').value,ceo:document.getElementById('c-ceo').value,contact:document.getElementById('c-contact').value,phone:document.getElementById('c-phone').value,email:document.getElementById('c-email').value,biz_type:document.getElementById('c-biz-type').value,note:document.getElementById('c-note').value,status:document.getElementById('c-status').value,supply_rate:parseFloat(document.getElementById('c-supply-rate').value)||null};if(_editCust){await sb.from('customers').update(obj).eq('id',_editCust.id);const idx=_customers.findIndex(c=>c.id===_editCust.id);if(idx>=0)_customers[idx]={..._editCust,...obj};}else{const{data}=await sb.from('customers').insert(obj).select().single();if(data)_customers.push(data);}cm('m-cust');renderCustomers();toast('저장됐습니다!');}
+
+// ─── CALENDAR ───
+let _calYear=new Date().getFullYear();
+let _calMonth=new Date().getMonth();
+
+function renderCalendar(){
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn btn-primary" onclick="openSchedModal()"><i class="ti ti-plus"></i> 일정 등록</button>`;
+  buildCalendar();
+}
+
+function buildCalendar(){
+  const yr=_calYear,mo=_calMonth;
+  const firstDay=new Date(yr,mo,1).getDay();
+  const daysInMonth=new Date(yr,mo+1,0).getDate();
+  const today=new Date().toISOString().slice(0,10);
+  const moStr=String(mo+1).padStart(2,'0');
+
+  // 이벤트 수집 (발주 + 입고예정 + 일정)
+  const events={};
+  const addEv=(date,ev)=>{if(!events[date])events[date]=[];events[date].push(ev);};
+
+  // 발주일
+  _invoices.filter(v=>v.order_date&&v.order_date.startsWith(yr+'-'+moStr)).forEach(v=>{
+    addEv(v.order_date,{type:'order',label:v.customer,color:'#2563EB',id:v.id});
+  });
+  // 입고예정
+  _stocks.filter(s=>s.date&&s.date.startsWith(yr+'-'+moStr)).forEach(s=>{
+    addEv(s.date,{type:'stock',label:'입고: '+s.name,color:'#059669'});
+  });
+  // 일정
+  _schedules.filter(s=>s.date&&s.date.startsWith(yr+'-'+moStr)).forEach(s=>{
+    const colors={미팅:'#7C3AED',팝업:'#EA580C',입고:'#059669',기타:'#4A5B78'};
+    addEv(s.date,{type:'sched',label:s.title,color:colors[s.type]||'#4A5B78',id:s.id});
+  });
+
+  const typeColors={order:'#2563EB',stock:'#059669',미팅:'#7C3AED',팝업:'#EA580C',입고:'#059669',기타:'#4A5B78'};
+  const days=['일','월','화','수','목','금','토'];
+  let cells='';
+  let d=1;
+  for(let w=0;w<6;w++){
+    if(d>daysInMonth)break;
+    cells+='<tr>';
+    for(let dow=0;dow<7;dow++){
+      if(w===0&&dow<firstDay){cells+=`<td class="cal-td" style="background:var(--bg3);height:110px;border:0.5px solid var(--border)"></td>`;continue;}
+      if(d>daysInMonth){cells+=`<td class="cal-td" style="background:var(--bg3);height:110px;border:0.5px solid var(--border)"></td>`;dow++;continue;}
+      const dateStr=yr+'-'+moStr+'-'+String(d).padStart(2,'0');
+      const isToday=dateStr===today;
+      const evList=events[dateStr]||[];
+      const isSun=dow===0,isSat=dow===6;
+      cells+=`<td class="cal-td" style="vertical-align:top;padding:6px;cursor:pointer;height:110px;border:0.5px solid var(--border);${isToday?'background:rgba(37,99,235,0.06);':''}" onclick="openDayDetail('${dateStr}')">
+        <div style="font-size:12px;font-weight:${isToday?'700':'500'};color:${isToday?'#2563EB':isSun?'#DC2626':isSat?'#2563EB':'var(--text)'};margin-bottom:3px">${d}</div>
+        ${evList.slice(0,3).map(e=>`<div style="font-size:10px;background:${e.color};color:#fff;border-radius:3px;padding:1px 4px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.label}</div>`).join('')}
+        ${evList.length>3?`<div style="font-size:9px;color:var(--text3)">+${evList.length-3}건</div>`:''}
+      </td>`;
+      d++;
+    }
+    cells+='</tr>';
+  }
+
+  document.getElementById('content').innerHTML=`
+  <div class="card" style="height:calc(100vh - 120px);display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:0.5px solid var(--border);flex-shrink:0">
+      <button class="btn btn-sm" onclick="_calMonth--;if(_calMonth<0){_calMonth=11;_calYear--;}buildCalendar()">◀</button>
+      <div style="display:flex;align-items:center;gap:16px">
+        <strong style="font-size:15px">${yr}년 ${mo+1}월</strong>
+        <div style="display:flex;gap:8px;font-size:10px;color:var(--text3)">
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#2563EB;margin-right:3px"></span>발주</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#059669;margin-right:3px"></span>입고</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#7C3AED;margin-right:3px"></span>미팅</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#EA580C;margin-right:3px"></span>팝업</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#4A5B78;margin-right:3px"></span>기타</span>
+        </div>
+      </div>
+      <button class="btn btn-sm" onclick="_calMonth++;if(_calMonth>11){_calMonth=0;_calYear++;}buildCalendar()">▶</button>
+    </div>
+    <div style="flex:1;overflow:auto;padding:0 8px 8px">
+      <table style="width:100%;height:100%;border-collapse:collapse;table-layout:fixed">
+        <thead><tr>${days.map((d,i)=>`<th style="padding:8px 4px;font-size:11px;font-weight:600;color:${i===0?'#DC2626':i===6?'#2563EB':'var(--text2)'};text-align:center">${d}</th>`).join('')}</tr></thead>
+        <tbody style="border-top:0.5px solid var(--border)">${cells}</tbody>
+      </table>
+    </div>
+  </div>`;
+
+}
+
+function openDayDetail(date){
+  const evList=[
+    ..._invoices.filter(v=>v.order_date===date).map(v=>({type:'발주',label:v.customer+' ('+v.no+')',color:'#2563EB'})),
+    ..._stocks.filter(s=>s.date===date).map(s=>({type:'입고',label:s.name+' '+s.qty+'개',color:'#059669'})),
+    ..._schedules.filter(s=>s.date===date).map(s=>({type:s.type,label:s.title+(s.customer?' ('+s.customer+')':'')+(s.note?' — '+s.note:''),color:'#7C3AED',id:s.id}))
+  ];
+  if(!evList.length){openSchedModal(date);return;}
+  const list=evList.map(e=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border)">
+    <span style="background:${e.color};color:#fff;font-size:10px;border-radius:3px;padding:2px 6px;flex-shrink:0">${e.type}</span>
+    <span style="font-size:12px;flex:1">${e.label}</span>
+    ${e.id?`<span class="alink" style="color:var(--red);font-size:10px" onclick="delSched('${e.id}')">삭제</span>`:''}
+  </div>`).join('');
+  if(document.getElementById('day-detail-modal'))document.getElementById('day-detail-modal').remove();
+  const div=document.createElement('div');
+  div.id='day-detail-modal';
+  div.className='modal-bg open';
+  div.innerHTML=`<div class="modal" style="max-width:420px">
+    <div class="mhd"><h2>${date}</h2><button class="btn btn-sm" onclick="this.closest('.modal-bg').remove()"><i class="ti ti-x"></i></button></div>
+    <div class="mbody">${list}</div>
+    <div class="mft">
+      <button class="btn" onclick="this.closest('.modal-bg').remove()">닫기</button>
+      <button class="btn btn-primary" onclick="this.closest('.modal-bg').remove();openSchedModal('${date}')"><i class="ti ti-plus"></i> 일정 추가</button>
+    </div>
+  </div>`;
+  document.body.appendChild(div);
+}
+
+function openSchedModal(date=''){
+  document.getElementById('sched-date').value=date||today();
+  document.getElementById('sched-title').value='';
+  document.getElementById('sched-type').value='미팅';
+  document.getElementById('sched-note').value='';
+  // 거래처 동적으로 채우기
+  const sel=document.getElementById('sched-cust');
+  sel.innerHTML='<option value="">선택 안함</option>'+(_customers||[]).filter(c=>c.status!=='계약종료').map(c=>`<option value="${c.name}">${c.name}</option>`).join('');
+  sel.value='';
+  om('m-sched');
+}
+
+async function saveSched(){
+  const title=document.getElementById('sched-title').value.trim();
+  const date=document.getElementById('sched-date').value;
+  if(!title||!date){alert('제목과 날짜는 필수입니다.');return;}
+  const obj={title,date,type:document.getElementById('sched-type').value,customer:document.getElementById('sched-cust').value,note:document.getElementById('sched-note').value};
+  const{data,error}=await sb.from('schedules').insert(obj).select().single();
+  if(error){toast('저장 오류: '+error.message);return;}
+  _schedules.push(data);
+  cm('m-sched');
+  buildCalendar();
+  toast('✅ 일정 등록됐습니다!');
+}
+
+async function delSched(id){
+  if(!confirm('삭제하시겠습니까?'))return;
+  await sb.from('schedules').delete().eq('id',id);
+  _schedules=_schedules.filter(s=>s.id!==id);
+  document.getElementById('day-detail-modal')?.remove();
+  buildCalendar();
+  toast('삭제됐습니다.');
+}
 
 // ─── DOCS ───
 function renderDocs(){
