@@ -135,6 +135,7 @@ tr:hover td{background:var(--bg3)}
 .preview-table td{padding:4px 7px;border:0.5px solid var(--border)}
 .loading{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--text3);gap:8px;font-size:12px}
 .loading i{font-size:20px;animation:spin 1s linear infinite}
+.cal-td{height:110px;overflow:hidden;vertical-align:top}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .month-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:12px}
 .mcard{background:var(--bg3);border-radius:var(--radius);padding:7px 10px}
@@ -239,7 +240,7 @@ tr:hover td{background:var(--bg3)}
     </div>
     <div class="ns">메인</div>
     <div class="ni active" onclick="go('dash')" id="nav-dash"><i class="ti ti-layout-dashboard"></i>대시보드</div>
-    <div class="ns">영업 플로우</div>
+    <div class="ns">영업</div>
     <div class="ni" onclick="go('invoices')" id="nav-invoices"><i class="ti ti-file-invoice"></i>인보이스</div>
     <div class="ni" onclick="go('raw')" id="nav-raw"><i class="ti ti-table"></i>RAW 데이터</div>
     <div class="ns">분석</div>
@@ -251,6 +252,7 @@ tr:hover td{background:var(--bg3)}
     <div class="ni" onclick="go('customers')" id="nav-customers"><i class="ti ti-building-store"></i>거래처 마스터</div>
     <div class="ns">일정</div>
     <div class="ni" onclick="go('calendar')" id="nav-calendar"><i class="ti ti-calendar"></i>달력</div>
+    <div class="ns">서류</div>
     <div class="ni" onclick="go('docs')" id="nav-docs"><i class="ti ti-folder"></i>서류 관리</div>
     <div class="ns">설정</div>
     <div class="ni" onclick="go('products')" id="nav-products"><i class="ti ti-box"></i>제품 목록</div>
@@ -444,8 +446,8 @@ tr:hover td{background:var(--bg3)}
     <div class="frow c1">
       <div class="fg">
         <label>파일 첨부</label>
-        <input type="file" id="d-file" accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.doc,.docx" style="padding:4px 8px;border:0.5px solid var(--border2);border-radius:var(--r);font-size:11px;background:var(--bg2);width:100%"/>
-        <small style="font-size:10px;color:var(--text3);margin-top:3px;display:block">PDF, 이미지, Excel, Word 가능</small>
+        <input type="file" id="d-file" accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.doc,.docx,.zip,.rar,.7z" style="padding:4px 8px;border:0.5px solid var(--border2);border-radius:var(--r);font-size:11px;background:var(--bg2);width:100%"/>
+        <small style="font-size:10px;color:var(--text3);margin-top:3px;display:block">PDF, 이미지, Excel, Word, 압축파일(ZIP·RAR·7Z) 가능</small>
       </div>
     </div>
     <div id="d-upload-progress" style="display:none;margin-top:6px;font-size:11px;color:var(--text2)"></div>
@@ -576,7 +578,6 @@ tr:hover td{background:var(--bg3)}
       <div class="fg"><label>종료일</label><input id="weekly-end" type="date"/></div>
     </div>
     <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-      <button class="btn btn-sm" onclick="setWeeklyRange('this')">이번 주</button>
       <button class="btn btn-sm" onclick="setWeeklyRange('last')">지난 주</button>
       <button class="btn btn-sm" onclick="setWeeklyRange('month')">이번 달</button>
       <button class="btn btn-sm" onclick="setWeeklyRange('last_month')">지난 달</button>
@@ -1035,7 +1036,7 @@ function getWeekNum(d){
 }
 
 function openWeeklyReport(){
-  setWeeklyRange('this');
+  setWeeklyRange('last_month');
   om('m-weekly');
 }
 
@@ -1157,8 +1158,8 @@ function _generateReport(yr,weekNum,wStart,wEnd){
     +'<div class="kpi-grid">'
     +'<div class="kpi main"><div class="lbl">Total Revenue</div><div class="val">'+fmtW(thisRev)+'</div>'
     +'<div class="sub">'+(revDiff!==null?'\uc9c1\uc804 \ub3d9\uae30 \ub300\ube44 <strong>'+(isUp?'+':'')+revDiff+'% '+(isUp?'\u25b2':'\u25bc')+'</strong>':'\uc9c1\uc804 \ub370\uc774\ud130 \uc5c6\uc74c')+'</div></div>'
-    +'<div class="kpi"><div class="lbl">\uac70\ub798\ucc98</div><div class="val">'+Object.keys(custRevMap).length+'\uac1c</div><div class="sub">\uc774\ubc88 \uc8fc \ub9e4\ucd9c \ubc1c\uc0dd</div></div>'
-    +'<div class="kpi"><div class="lbl">\uc778\ubcf4\uc774\uc2a4</div><div class="val">'+thisWeekInvs.length+'\uac74</div><div class="sub">\uc774\ubc88 \uc8fc \ubc1c\ud589</div></div>'
+    +'<div class="kpi"><div class="lbl">\uac70\ub798\ucc98</div><div class="val">'+Object.keys(custRevMap).length+'\uac1c</div><div class="sub">'+dateRange+' \ub9e4\ucd9c \ubc1c\uc0dd</div></div>'
+    +'<div class="kpi"><div class="lbl">\uc778\ubcf4\uc774\uc2a4</div><div class="val">'+thisWeekInvs.length+'\uac74</div><div class="sub">'+dateRange+' \ubc1c\ud589</div></div>'
     +'</div>';
 
   let html2='';
@@ -3243,6 +3244,17 @@ function buildCalendar(){
   const today=new Date().toISOString().slice(0,10);
   const moStr=String(mo+1).padStart(2,'0');
 
+  // 날짜별 매출 집계 (Paid 기준)
+  const dayRevMap={};
+  _invoices.filter(v=>v.order_date&&v.order_date.startsWith(yr+'-'+moStr)).forEach(v=>{
+    const rev=itemsRev(getInvItems(v.id));
+    if(rev>0)dayRevMap[v.order_date]=(dayRevMap[v.order_date]||0)+rev;
+  });
+  // 월 누계
+  const monthTotal=Object.values(dayRevMap).reduce((a,v)=>a+v,0);
+  // 누계 바 최대값
+  const maxDayRev=Math.max(...Object.values(dayRevMap),1);
+
   // 이벤트 수집 (발주 + 입고예정 + 일정)
   const events={};
   const addEv=(date,ev)=>{if(!events[date])events[date]=[];events[date].push(ev);};
@@ -3261,7 +3273,6 @@ function buildCalendar(){
     addEv(s.date,{type:'sched',label:s.title,color:colors[s.type]||'#4A5B78',id:s.id});
   });
 
-  const typeColors={order:'#2563EB',stock:'#059669',미팅:'#7C3AED',팝업:'#EA580C',입고:'#059669',기타:'#4A5B78'};
   const days=['일','월','화','수','목','금','토'];
   let cells='';
   let d=1;
@@ -3269,16 +3280,35 @@ function buildCalendar(){
     if(d>daysInMonth)break;
     cells+='<tr>';
     for(let dow=0;dow<7;dow++){
-      if(w===0&&dow<firstDay){cells+=`<td class="cal-td" style="background:var(--bg3);height:110px;border:0.5px solid var(--border)"></td>`;continue;}
-      if(d>daysInMonth){cells+=`<td class="cal-td" style="background:var(--bg3);height:110px;border:0.5px solid var(--border)"></td>`;dow++;continue;}
+      if(w===0&&dow<firstDay){cells+=`<td class="cal-td" style="background:var(--bg3);border:0.5px solid var(--border)"></td>`;continue;}
+      if(d>daysInMonth){cells+=`<td class="cal-td" style="background:var(--bg3);border:0.5px solid var(--border)"></td>`;dow++;continue;}
       const dateStr=yr+'-'+moStr+'-'+String(d).padStart(2,'0');
       const isToday=dateStr===today;
       const evList=events[dateStr]||[];
       const isSun=dow===0,isSat=dow===6;
-      cells+=`<td class="cal-td" style="vertical-align:top;padding:6px;cursor:pointer;height:110px;border:0.5px solid var(--border);${isToday?'background:rgba(37,99,235,0.06);':''}" onclick="openDayDetail('${dateStr}')">
-        <div style="font-size:12px;font-weight:${isToday?'700':'500'};color:${isToday?'#2563EB':isSun?'#DC2626':isSat?'#2563EB':'var(--text)'};margin-bottom:3px">${d}</div>
-        ${evList.slice(0,3).map(e=>`<div style="font-size:10px;background:${e.color};color:#fff;border-radius:3px;padding:1px 4px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.label}</div>`).join('')}
-        ${evList.length>3?`<div style="font-size:9px;color:var(--text3)">+${evList.length-3}건</div>`:''}
+      const dayRev=dayRevMap[dateStr]||0;
+      const barWidth=dayRev>0?Math.max(8,Math.round(dayRev/maxDayRev*100)):0;
+      const revHtml=dayRev>0
+        ?`<div style="margin-top:2px;margin-bottom:3px">
+            <div style="font-size:9px;font-weight:600;color:#1D4ED8;line-height:1.2">${fmt(dayRev)}</div>
+            <div style="height:3px;background:var(--bg3);border-radius:2px;margin-top:1px;overflow:hidden">
+              <div style="width:${barWidth}%;height:100%;background:rgba(37,99,235,0.35);border-radius:2px"></div>
+            </div>
+          </div>`
+        :'';
+      const maxShow = dayRev > 0 ? 2 : 3;
+      const shown = evList.slice(0, maxShow);
+      const rest = evList.length - maxShow;
+      cells+=`<td class="cal-td" style="padding:5px 6px;cursor:pointer;border:0.5px solid var(--border);${isToday?'background:rgba(37,99,235,0.08);box-shadow:inset 0 0 0 2px #2563EB;':''}" onclick="openDayDetail('${dateStr}')">
+        <div style="margin-bottom:1px">
+          ${isToday
+            ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#2563EB;color:#fff;font-size:12px;font-weight:700">${d}</span>`
+            : `<span style="font-size:12px;font-weight:500;color:${isSun?'#DC2626':isSat?'#2563EB':'var(--text)'}">${d}</span>`
+          }
+        </div>
+        ${revHtml}
+        ${shown.map(e=>`<div style="font-size:10px;background:${e.color};color:#fff;border-radius:3px;padding:1px 4px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.label}</div>`).join('')}
+        ${rest>0?`<div style="font-size:9px;color:var(--text3);font-weight:500">+${rest}건</div>`:''}
       </td>`;
       d++;
     }
@@ -3289,8 +3319,13 @@ function buildCalendar(){
   <div class="card" style="height:calc(100vh - 120px);display:flex;flex-direction:column">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:0.5px solid var(--border);flex-shrink:0">
       <button class="btn btn-sm" onclick="_calMonth--;if(_calMonth<0){_calMonth=11;_calYear--;}buildCalendar()">◀</button>
-      <div style="display:flex;align-items:center;gap:16px">
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
         <strong style="font-size:15px">${yr}년 ${mo+1}월</strong>
+        ${monthTotal>0?`<div style="display:flex;align-items:center;gap:5px;background:var(--purple-light);border:0.5px solid #AFA9EC;border-radius:20px;padding:2px 10px">
+          <i class="ti ti-coins" style="font-size:11px;color:var(--purple-dark)"></i>
+          <span style="font-size:11px;font-weight:700;color:var(--purple-dark)">${fmt(monthTotal)}</span>
+          <span style="font-size:10px;color:var(--text3)">월 누계</span>
+        </div>`:''}
         <div style="display:flex;gap:8px;font-size:10px;color:var(--text3)">
           <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#2563EB;margin-right:3px"></span>발주</span>
           <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#059669;margin-right:3px"></span>입고</span>
