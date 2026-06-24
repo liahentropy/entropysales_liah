@@ -281,11 +281,14 @@ tr:hover td{background:var(--bg3)}
       <h1>해외영업 관리</h1>
       <p>Entropy Makeup 2026</p>
       <div id="sidebar-user" style="margin-top:7px;padding-top:7px;border-top:0.5px solid rgba(255,255,255,0.08);display:none;align-items:center;gap:6px">
-        <img id="sidebar-avatar" src="" style="width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0"/>
+        <img id="sidebar-avatar" src="" style="width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0"/>
         <div style="min-width:0;flex:1">
           <div id="sidebar-name" style="font-size:10px;color:rgba(255,255,255,0.8);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
           <div id="sidebar-email" style="font-size:9px;color:rgba(255,255,255,0.35);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px"></div>
         </div>
+        <button onclick="signOut()" title="로그아웃" style="background:none;border:none;cursor:pointer;color:rgba(255,255,255,0.3);padding:2px;flex-shrink:0;line-height:1" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.3)'">
+          <i class="ti ti-logout" style="font-size:13px"></i>
+        </button>
       </div>
     </div>
     <div class="ns">메인</div>
@@ -4172,18 +4175,7 @@ function showMainApp(user){
     if(sidebarAvatar && avatar){ sidebarAvatar.src = avatar; sidebarAvatar.style.display='block'; }
     sidebarUser.style.display = 'flex';
   }
-  // 상단 바에 유저 정보 + 로그아웃 버튼
-  const topbarActions = document.getElementById('topbar-actions');
-  if(topbarActions && !document.getElementById('user-info-btn')){
-    const userEl = document.createElement('div');
-    userEl.id = 'user-info-btn';
-    userEl.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2)';
-    userEl.innerHTML = `
-      ${user.user_metadata?.avatar_url ? `<img src="${user.user_metadata.avatar_url}" style="width:22px;height:22px;border-radius:50%;object-fit:cover"/>` : '<i class="ti ti-user-circle" style="font-size:18px"></i>'}
-      <span>${user.user_metadata?.full_name || user.email}</span>
-      <button onclick="signOut()" class="btn btn-sm" style="padding:2px 7px;font-size:10px"><i class="ti ti-logout"></i> 로그아웃</button>`;
-    topbarActions.prepend(userEl);
-  }
+
 }
 
 async function signOut(){
