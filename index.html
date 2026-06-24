@@ -1576,8 +1576,13 @@ function filterInv(page){
       <td style="text-align:center;position:relative" id="inv-file-td-${v.id}" onclick="event.stopPropagation()"></td>
     </tr>`;
   }).join('');
-  // 첨부파일 아이콘 비동기 로드
-  setTimeout(()=>loadInvFileIcons(paged.map(v=>v.id)),0);
+  // 첨부파일 아이콘: 캐시 있으면 즉시 반영, 없으면 비동기 로드
+  const needFetch=[];
+  paged.forEach(v=>{
+    if(_invFileCache[v.id]!==undefined) updateInvFileIcon(v.id);
+    else needFetch.push(v.id);
+  });
+  if(needFetch.length) setTimeout(()=>loadInvFileIcons(needFetch),0);
   // 페이지네이션
   const pg=document.getElementById('inv-pagination');
   if(pg){
