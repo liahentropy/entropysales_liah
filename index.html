@@ -536,6 +536,7 @@ tr:hover td{background:var(--bg3)}
       <button class="btn btn-sm" onclick="setGoalQuick(1000000000)">10억</button>
       <button class="btn btn-sm" onclick="setGoalQuick(2000000000)">20억</button>
       <button class="btn btn-sm" onclick="setGoalQuick(5000000000)">50억</button>
+      <button class="btn btn-sm" onclick="setGoalQuick(10000000000)">100억</button>
     </div>
   </div>
   <div class="mft">
@@ -844,13 +845,16 @@ function fillCustSel(id,sel=''){
 
 // ─── 데이터 로드 ───
 async function loadAll(){
-  const [c,p,inv,s,d,sch]=await Promise.all([
+  // 모든 쿼리 동시에 병렬 실행
+  const [c,p,inv,s,d,sch,items,goal]=await Promise.all([
     sb.from('customers').select('*').order('name'),
     sb.from('products').select('*').order('name'),
     sb.from('invoices').select('*').order('order_date',{ascending:false}),
     sb.from('stocks').select('*').order('date'),
     sb.from('documents').select('*').order('created_at',{ascending:false}),
-    sb.from('schedules').select('*').order('date')
+    sb.from('schedules').select('*').order('date'),
+    sb.from('invoice_items').select('*').limit(5000),
+    sb.from('app_settings').select('value').eq('key','revenue_goal').maybeSingle()
   ]);
   _customers=c.data||[];
   _products=p.data||[];
@@ -858,21 +862,11 @@ async function loadAll(){
   _stocks=s.data||[];
   _docs=d.data||[];
   _schedules=sch.data||[];
-
-  // invoice_items 전체 로드 (한번에 최대 5000개)
-  _items=[];
-  let from=0;
-  const PAGE=1000;
-  let safetyCount=0;
-  while(safetyCount<5){
-    safetyCount++;
-    const {data,error}=await sb.from('invoice_items').select('*').range(from,from+PAGE-1);
-    if(error||!data||!data.length)break;
-    _items.push(...data);
-    if(data.length<PAGE)break;
-    from+=PAGE;
+  _items=items.data||[];
+  if(goal?.data){
+    _revenueGoal=parseFloat(goal.data.value)||0;
+    localStorage.setItem('revenue_goal',_revenueGoal);
   }
-  // 첨부파일은 인보이스 목록 열 때 필요한 것만 로드
 }
 
 async function preloadAllInvFiles(){
@@ -930,7 +924,7 @@ function renderDash(){
       <div class="sub" id="dash-storage-sub" style="margin-top:3px"></div>
     </div>
     ${(()=>{
-      const goal=parseFloat(localStorage.getItem('revenue_goal'))||0;
+      const goal=_revenueGoal||0;
       const pct=goal>0?Math.min(Math.round(totalRev/goal*100),100):0;
       const barColor=pct>=100?'#2563EB':pct>=70?'#F59E0B':'#FBBF24';
       return`<div class="kpi" style="background:linear-gradient(135deg,#FFFBEB,#FEF3C7);border:0.5px solid #FDE68A;position:relative;overflow:hidden">
@@ -4051,10 +4045,24 @@ async function checkStorageUsage(){
 }
 
 // ─── 목표 매출 ───
+let _revenueGoal = parseFloat(localStorage.getItem('revenue_goal'))||0;
+
+async function loadRevenueGoal(){
+  try{
+    const{data}=await sb.from('app_settings').select('value').eq('key','revenue_goal').single();
+    if(data){
+      _revenueGoal=parseFloat(data.value)||0;
+      localStorage.setItem('revenue_goal',_revenueGoal);
+    }
+  }catch(e){
+    // 테이블 없으면 localStorage 사용
+    _revenueGoal=parseFloat(localStorage.getItem('revenue_goal'))||0;
+  }
+}
+
 function openGoalEdit(){
-  const cur=parseFloat(localStorage.getItem('revenue_goal'))||0;
   const inp=document.getElementById('goal-input');
-  if(inp)inp.value=cur||'';
+  if(inp)inp.value=_revenueGoal||'';
   updateGoalPreview();
   om('m-goal');
 }
@@ -4067,10 +4075,15 @@ function setGoalQuick(v){
   const inp=document.getElementById('goal-input');
   if(inp){inp.value=v;updateGoalPreview();}
 }
-function saveGoal(){
+async function saveGoal(){
   const v=parseFloat(document.getElementById('goal-input')?.value)||0;
   if(v<=0){toast('금액을 입력해주세요.');return;}
+  _revenueGoal=v;
   localStorage.setItem('revenue_goal',v);
+  // Supabase에도 저장 (upsert)
+  try{
+    await sb.from('app_settings').upsert({key:'revenue_goal',value:String(v)},{onConflict:'key'});
+  }catch(e){console.warn('app_settings 저장 실패 (테이블 없으면 무시):', e);}
   cm('m-goal');
   renderDash();
   toast('🎯 목표 매출 저장됐습니다!');
