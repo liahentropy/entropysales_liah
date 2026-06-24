@@ -446,7 +446,16 @@ tr:hover td{background:var(--bg3)}
     <div class="frow c1">
       <div class="fg">
         <label>파일 첨부</label>
-        <input type="file" id="d-file" accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.doc,.docx,.zip,.rar,.7z" style="padding:4px 8px;border:0.5px solid var(--border2);border-radius:var(--r);font-size:11px;background:var(--bg2);width:100%"/>
+        <div id="doc-drop-zone"
+          style="border:1.5px dashed var(--border2);border-radius:var(--radius);padding:10px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s"
+          onclick="document.getElementById('d-file').click()"
+          ondragover="event.preventDefault();this.style.borderColor='var(--purple)';this.style.background='var(--purple-light)'"
+          ondragleave="this.style.borderColor='var(--border2)';this.style.background=''"
+          ondrop="event.preventDefault();this.style.borderColor='var(--border2)';this.style.background='';docDropFile(event.dataTransfer.files[0])">
+          <i class='ti ti-cloud-upload' style='font-size:16px;color:var(--text3);display:block;margin-bottom:2px'></i>
+          <span id="d-file-name" style="font-size:11px;color:var(--text3)">클릭하거나 끌어다 놓으세요</span>
+          <input type="file" id="d-file" style="display:none" accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.doc,.docx,.zip,.rar,.7z" onchange="docFileSelect(this)"/>
+        </div>
         <small style="font-size:10px;color:var(--text3);margin-top:3px;display:block">PDF, 이미지, Excel, Word, 압축파일(ZIP·RAR·7Z) 가능</small>
       </div>
     </div>
@@ -650,11 +659,16 @@ tr:hover td{background:var(--bg3)}
     </div>
     <div id="view-inv-note" style="margin-top:8px;font-size:11px;color:var(--text2)"></div>
     <div style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <span style="font-size:11px;font-weight:600;color:var(--text2)">📎 첨부 서류 (BL, 구매확인서 등)</span>
-        <label style="cursor:pointer" class="btn btn-sm"><i class="ti ti-upload"></i> 파일 업로드
-          <input type="file" id="inv-doc-upload" style="display:none" accept=".pdf,.xlsx,.xls,.doc,.docx,.jpg,.png,.jpeg" onchange="uploadInvDoc(this)"/>
-        </label>
+      <div style="margin-bottom:6px"><span style="font-size:11px;font-weight:600;color:var(--text2)">📎 첨부 서류 (BL, 구매확인서 등)</span></div>
+      <div id="inv-drop-zone"
+        style="border:1.5px dashed var(--border2);border-radius:var(--radius);padding:12px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;margin-bottom:8px"
+        onclick="document.getElementById('inv-doc-upload').click()"
+        ondragover="event.preventDefault();this.style.borderColor='var(--purple)';this.style.background='var(--purple-light)'"
+        ondragleave="this.style.borderColor='var(--border2)';this.style.background=''"
+        ondrop="event.preventDefault();this.style.borderColor='var(--border2)';this.style.background='';invDropFiles(event.dataTransfer.files)">
+        <i class='ti ti-cloud-upload' style='font-size:18px;color:var(--text3);display:block;margin-bottom:3px'></i>
+        <span style="font-size:11px;color:var(--text3)">클릭하거나 파일을 여기에 끌어다 놓으세요</span>
+        <input type="file" id="inv-doc-upload" style="display:none" accept=".pdf,.xlsx,.xls,.doc,.docx,.jpg,.png,.jpeg,.zip,.rar,.7z" multiple onchange="invFileSelect(this)"/>
       </div>
       <div id="inv-doc-list" style="font-size:11px;color:var(--text3)">첨부 파일 없음</div>
     </div>
@@ -1450,27 +1464,33 @@ async function loadInvDocs(invId){
   }catch(e){el.innerHTML='<span style="color:var(--red)">오류: '+e.message+'</span>';}
 }
 
-async function ensureBucket(name){
-  try{
-    const{data:list}=await sb.storage.listBuckets();
-    if(list&&list.find(b=>b.name===name))return true;
-    const{error}=await sb.storage.createBucket(name,{public:true});
-    if(error){console.warn('버킷 생성 오류:',error.message);return false;}
-    return true;
-  }catch(e){console.warn('ensureBucket 오류:',e);return false;}
+async function invFileSelect(input){
+  if(!input.files||!input.files.length)return;
+  for(const file of Array.from(input.files)) await uploadInvDoc(file);
+  input.value='';
 }
-
+async function invDropFiles(files){
+  if(!files||!files.length)return;
+  for(const file of Array.from(files)) await uploadInvDoc(file);
+}
 async function uploadInvDoc(input){
-  if(!input.files.length||!_currentInvId)return;
-  const file=input.files[0];
+  const file=input?.files?.[0]||input;
+  if(!file||!_currentInvId)return;
   const path=_currentInvId+'/'+Date.now()+'_'+file.name;
   toast('업로드 중...');
-  await ensureBucket('invoice-docs');
   const{data,error}=await sb.storage.from('invoice-docs').upload(path,file,{upsert:true});
-  if(error){toast('업로드 오류: '+error.message);console.error(error);return;}
+  if(error){
+    if(error.message&&error.message.includes('Bucket not found')){
+      toast('❌ Supabase Storage에 invoice-docs 버킷을 먼저 만들어주세요.');
+      alert('Supabase 대시보드 → Storage → New bucket\n이름: invoice-docs\nPublic 체크 후 저장');
+    } else {
+      toast('업로드 오류: '+error.message);
+    }
+    console.error(error);return;
+  }
   toast('✅ 업로드 완료!');
   loadInvDocs(_currentInvId);
-  input.value='';
+  if(input.value!==undefined)input.value='';
 }
 
 async function deleteInvDoc(invId,name){
@@ -3438,19 +3458,30 @@ function filterDocs(){
   const byType={};DOC_TYPES.forEach(t=>{const docs=list.filter(d=>d.type===t);if(docs.length)byType[t]=docs;});
   el.innerHTML=Object.entries(byType).map(([type,docs])=>`<div class="card" style="margin-bottom:10px"><div class="card-hd"><h3>${type} (${docs.length}건)</h3></div><div class="tw"><table><thead><tr><th>서류명</th><th>거래처</th><th>국가</th><th>만료일</th><th>메모</th><th></th></tr></thead><tbody>${docs.map(d=>{const exp=d.exp_date&&d.exp_date<today();return`<tr><td><span class="file-chip"><i class="ti ti-file" style="font-size:12px;color:var(--purple)"></i>${d.file_url?`<a href="${d.file_url}" target="_blank" style="color:var(--purple);text-decoration:none">${d.name} <i class="ti ti-external-link" style="font-size:10px"></i></a>`:d.name}</span></td><td>${d.customer||'-'}</td><td style="font-size:10px;color:var(--text2)">${d.country||'-'}</td><td>${d.exp_date?`<span class="badge ${exp?'bg-red':'bg-green'}">${d.exp_date}</span>`:'-'}</td><td style="font-size:10px;color:var(--text2)">${d.note||'-'}</td><td><span class="alink" style="color:var(--red)" onclick="delDoc('${d.id}')">삭제</span></td></tr>`;}).join('')}</tbody></table></div></div>`).join('');
 }
-function openDocModal(){fillCustSel('d-cust','');['d-name','d-country','d-note'].forEach(id=>document.getElementById(id).value='');document.getElementById('d-exp').value='';const fi=document.getElementById('d-file');if(fi)fi.value='';const dp=document.getElementById('d-upload-progress');if(dp){dp.textContent='';dp.style.display='none';}om('m-doc');}
+function openDocModal(){fillCustSel('d-cust','');['d-name','d-country','d-note'].forEach(id=>document.getElementById(id).value='');document.getElementById('d-exp').value='';const fi=document.getElementById('d-file');if(fi)fi.value='';_docFile=null;const lbl=document.getElementById('d-file-name');if(lbl)lbl.textContent='클릭하거나 끌어다 놓으세요';const dp=document.getElementById('d-upload-progress');if(dp){dp.textContent='';dp.style.display='none';}om('m-doc');}
+let _docFile=null;
+function docFileSelect(input){
+  _docFile=input.files[0]||null;
+  const lbl=document.getElementById('d-file-name');
+  if(lbl)lbl.textContent=_docFile?'📄 '+_docFile.name:'클릭하거나 끌어다 놓으세요';
+}
+function docDropFile(file){
+  if(!file)return;
+  _docFile=file;
+  const lbl=document.getElementById('d-file-name');
+  if(lbl)lbl.textContent='📄 '+file.name;
+}
+
 async function saveDoc(){
   const name=document.getElementById('d-name').value.trim();
   if(!name){alert('서류명 필수');return;}
-  const fileInput=document.getElementById('d-file');
-  const file=fileInput?.files?.[0];
+  const file=_docFile||document.getElementById('d-file')?.files?.[0];
   const prog=document.getElementById('d-upload-progress');
   let fileUrl=null;let filePath=null;
   if(file){
     if(prog){prog.style.display='block';prog.textContent='파일 업로드 중...';}
     const ext=file.name.split('.').pop();
     const path='docs/'+Date.now()+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
-    await ensureBucket('documents');
     const{data:upData,error:upErr}=await sb.storage.from('documents').upload(path,file);
     if(upErr){alert('파일 업로드 실패: '+upErr.message);if(prog)prog.style.display='none';return;}
     const{data:urlData}=sb.storage.from('documents').getPublicUrl(path);
