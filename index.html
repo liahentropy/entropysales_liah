@@ -876,20 +876,7 @@ async function loadAll(){
 }
 
 async function preloadAllInvFiles(){
-  if(!_invoices.length)return;
-  // 10개씩 병렬로 로드
-  const ids=_invoices.map(v=>v.id);
-  const CHUNK=10;
-  for(let i=0;i<ids.length;i+=CHUNK){
-    const chunk=ids.slice(i,i+CHUNK);
-    await Promise.all(chunk.map(async id=>{
-      if(_invFileCache[id]!==undefined)return;
-      try{
-        const{data,error}=await sb.storage.from('invoice-docs').list(id+'/');
-        _invFileCache[id]=(error||!data)?[]:data.filter(f=>f.name&&f.name!=='.emptyFolderPlaceholder');
-      }catch(e){_invFileCache[id]=[];}
-    }));
-  }
+  // 초기 로드 시 Storage 호출 안 함 - 인보이스 목록 열 때만 로드
 }
 
 function toggleSidebar(){
@@ -936,6 +923,12 @@ function renderDash(){
     <div class="kpi" style="background:linear-gradient(135deg,#1D4ED8,#2563EB);border-color:#2563EB"><div class="lbl" style="color:rgba(255,255,255,0.7)">총 Revenue</div><div class="val" style="color:#fff;font-size:22px">${fmt(totalRev)}</div></div>
     <div class="kpi"><div class="lbl">FOC 비용</div><div class="val" style="color:var(--red)">${fmt(totalFoc)}</div><div class="sub">Rev 대비 ${totalRev>0?(totalFoc/totalRev*100).toFixed(1):0}%</div></div>
     <div class="kpi"><div class="lbl">Lost 금액</div><div class="val" style="color:#993C1D">${fmt(totalLost)}</div></div>
+    <div class="kpi" id="dash-storage-kpi" style="cursor:pointer" onclick="runStorageCheck(this)" title="클릭해서 확인">
+      <div class="lbl">Storage 사용량</div>
+      <div class="val" style="font-size:14px" id="dash-storage-val"><span style="font-size:11px;color:var(--text3)">클릭해서 확인 →</span></div>
+      <div style="height:4px;background:var(--bg2);border-radius:20px;overflow:hidden;margin-top:5px"><div id="dash-storage-bar" style="height:100%;border-radius:20px;background:var(--green);width:0%;transition:width .4s"></div></div>
+      <div class="sub" id="dash-storage-sub" style="margin-top:3px"></div>
+    </div>
     ${(()=>{
       const goal=parseFloat(localStorage.getItem('revenue_goal'))||0;
       const pct=goal>0?Math.min(Math.round(totalRev/goal*100),100):0;
@@ -957,12 +950,7 @@ function renderDash(){
         </div>`:''}
       </div>`;
     })()}
-    <div class="kpi" id="dash-storage-kpi" style="cursor:pointer" onclick="runStorageCheck()" title="클릭해서 확인">
-      <div class="lbl">Storage 사용량</div>
-      <div class="val" style="font-size:14px" id="dash-storage-val"><span style="font-size:11px;color:var(--text3)">클릭해서 확인 →</span></div>
-      <div style="height:4px;background:var(--bg2);border-radius:20px;overflow:hidden;margin-top:5px"><div id="dash-storage-bar" style="height:100%;border-radius:20px;background:var(--green);width:0%;transition:width .4s"></div></div>
-      <div class="sub" id="dash-storage-sub" style="margin-top:3px"></div>
-    </div>
+
   </div>
   <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px">
     <div class="card">
@@ -1687,13 +1675,8 @@ function filterInv(page){
       <td style="text-align:center;position:relative" id="inv-file-td-${v.id}" onclick="event.stopPropagation()"></td>
     </tr>`;
   }).join('');
-  // 첨부파일 아이콘: 캐시 있으면 즉시 반영, 없으면 비동기 로드
-  const needFetch=[];
-  paged.forEach(v=>{
-    if(_invFileCache[v.id]!==undefined) updateInvFileIcon(v.id);
-    else needFetch.push(v.id);
-  });
-  if(needFetch.length) setTimeout(()=>loadInvFileIcons(needFetch),0);
+  // 캐시된 것만 즉시 반영 (없는 건 인보이스 열 때 로드)
+  paged.forEach(v=>{ if(_invFileCache[v.id]!==undefined) updateInvFileIcon(v.id); });
   // 페이지네이션
   const pg=document.getElementById('inv-pagination');
   if(pg){
@@ -4018,6 +4001,55 @@ async function saveBulkProd(){
 async function saveProd(){const name=document.getElementById('p-name').value.trim();if(!name){alert('제품명 필수');return;}const obj={name,barcode:document.getElementById('p-barcode').value,price:parseFloat(document.getElementById('p-price').value)||0,cat:document.getElementById('p-cat').value,status:document.getElementById('p-status').value,name_eng:document.getElementById('p-name-eng').value,cartoon:parseInt(document.getElementById('p-cartoon').value)||0,inbox:parseInt(document.getElementById('p-inbox').value)||0};if(_editProd){await sb.from('products').update(obj).eq('id',_editProd.id);const idx=_products.findIndex(p=>p.id===_editProd.id);if(idx>=0)_products[idx]={..._editProd,...obj};}else{const{data}=await sb.from('products').insert(obj).select().single();if(data)_products.push(data);}cm('m-prod');renderProducts();toast('저장됐습니다!');}
 async function delProd(id){if(!confirm('삭제하시겠습니까?'))return;await sb.from('products').delete().eq('id',id);_products=_products.filter(p=>p.id!==id);renderProducts();}
 
+// ─── Storage 사용량 체크 ───
+async function runStorageCheck(el){
+  const valEl=document.getElementById('dash-storage-val');
+  if(valEl)valEl.innerHTML='<span style="font-size:11px;color:var(--text3)">확인 중...</span>';
+  await checkStorageUsage();
+}
+
+async function checkStorageUsage(){
+  try{
+    const buckets=['invoice-docs','documents'];
+    let totalBytes=0;
+    for(const bucket of buckets){
+      const{data,error}=await sb.storage.from(bucket).list('',{limit:1000});
+      if(error||!data)continue;
+      for(const folder of data){
+        if(!folder.id){
+          const{data:files}=await sb.storage.from(bucket).list(folder.name,{limit:1000});
+          if(files)files.forEach(f=>{if(f.metadata?.size)totalBytes+=f.metadata.size;});
+        } else {
+          if(folder.metadata?.size)totalBytes+=folder.metadata.size;
+        }
+      }
+    }
+    const usedMB=totalBytes/1024/1024;
+    const limitMB=1024;
+    const pct=usedMB/limitMB*100;
+    const valEl=document.getElementById('dash-storage-val');
+    const barEl=document.getElementById('dash-storage-bar');
+    const subEl=document.getElementById('dash-storage-sub');
+    if(valEl)valEl.textContent=usedMB<1?`${(usedMB*1024).toFixed(0)}KB / 1GB`:`${usedMB.toFixed(1)}MB / 1GB`;
+    if(barEl){barEl.style.width=Math.min(pct,100)+'%';barEl.style.background=pct>=90?'var(--red)':pct>=70?'var(--amber)':'var(--green)';}
+    if(subEl){subEl.textContent=pct.toFixed(1)+'% 사용 중';subEl.style.color=pct>=90?'var(--red)':pct>=70?'var(--amber)':'var(--text3)';}
+    if(pct>=70){
+      const color=pct>=90?'var(--red)':'var(--amber)';
+      const bg=pct>=90?'var(--red-light)':'var(--amber-light)';
+      const existing=document.getElementById('storage-alert');if(existing)existing.remove();
+      const el=document.createElement('div');
+      el.id='storage-alert';
+      el.style.cssText=`position:fixed;top:52px;left:192px;right:0;z-index:99;background:${bg};border-bottom:1px solid ${color};padding:7px 18px;display:flex;align-items:center;gap:8px;font-size:11px;color:${color}`;
+      el.innerHTML=`<i class="ti ti-alert-triangle" style="font-size:14px"></i><span style="flex:1">Storage ${pct.toFixed(1)}% 사용 중 (${usedMB.toFixed(0)}MB / ${limitMB}MB)</span><button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:${color};font-size:14px;padding:0 4px">×</button>`;
+      document.body.appendChild(el);
+    }
+  }catch(e){
+    const valEl=document.getElementById('dash-storage-val');
+    if(valEl)valEl.innerHTML='<span style="font-size:11px;color:var(--red)">확인 실패</span>';
+    console.warn('storage check failed:',e);
+  }
+}
+
 // ─── 목표 매출 ───
 function openGoalEdit(){
   const cur=parseFloat(localStorage.getItem('revenue_goal'))||0;
@@ -4045,11 +4077,6 @@ function saveGoal(){
 }
 
 // ─── Storage 사용량 체크 ───
-async function runStorageCheck(){
-  const el=document.getElementById('dash-storage-val');
-  if(el)el.innerHTML='<span style="font-size:11px;color:var(--text3)">확인 중...</span>';
-  await checkStorageUsage();
-}
 
 async function checkStorageUsage(){
   try{
@@ -4096,24 +4123,6 @@ async function checkStorageUsage(){
   }catch(e){console.warn('storage check failed:',e);}
 }
 
-function showStorageAlert(usedMB,limitMB,pct,level){
-  const existing=document.getElementById('storage-alert');
-  if(existing)existing.remove();
-  const color=level==='red'?'var(--red)':'var(--amber)';
-  const bg=level==='red'?'var(--red-light)':'var(--amber-light)';
-  const icon=level==='red'?'ti-alert-circle':'ti-alert-triangle';
-  const msg=level==='red'
-    ?`⚠️ Storage 용량이 ${pct.toFixed(1)}% 찼습니다! 곧 업로드가 불가능해집니다.`
-    :`Storage 용량이 ${pct.toFixed(1)}% 사용 중입니다. (${usedMB.toFixed(0)}MB / ${limitMB}MB)`;
-  const el=document.createElement('div');
-  el.id='storage-alert';
-  el.style.cssText=`position:fixed;top:52px;left:192px;right:0;z-index:99;background:${bg};border-bottom:1px solid ${color};padding:7px 18px;display:flex;align-items:center;gap:8px;font-size:11px;color:${color}`;
-  el.innerHTML=`<i class="ti ${icon}" style="font-size:14px;flex-shrink:0"></i>
-    <span style="flex:1">${msg}</span>
-    <a href="https://supabase.com/dashboard/project/qqmhxnwmasamkqsbnrvw/settings/storage" target="_blank" style="color:${color};font-weight:600;text-decoration:underline">용량 확인</a>
-    <button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:${color};font-size:14px;padding:0 4px;line-height:1">×</button>`;
-  document.body.appendChild(el);
-}
 
 // ─── 인증 ───
 const ALLOWED_DOMAIN = 'entropymakeup.com';
