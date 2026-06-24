@@ -1450,11 +1450,22 @@ async function loadInvDocs(invId){
   }catch(e){el.innerHTML='<span style="color:var(--red)">오류: '+e.message+'</span>';}
 }
 
+async function ensureBucket(name){
+  try{
+    const{data:list}=await sb.storage.listBuckets();
+    if(list&&list.find(b=>b.name===name))return true;
+    const{error}=await sb.storage.createBucket(name,{public:true});
+    if(error){console.warn('버킷 생성 오류:',error.message);return false;}
+    return true;
+  }catch(e){console.warn('ensureBucket 오류:',e);return false;}
+}
+
 async function uploadInvDoc(input){
   if(!input.files.length||!_currentInvId)return;
   const file=input.files[0];
   const path=_currentInvId+'/'+Date.now()+'_'+file.name;
   toast('업로드 중...');
+  await ensureBucket('invoice-docs');
   const{data,error}=await sb.storage.from('invoice-docs').upload(path,file,{upsert:true});
   if(error){toast('업로드 오류: '+error.message);console.error(error);return;}
   toast('✅ 업로드 완료!');
@@ -3439,6 +3450,7 @@ async function saveDoc(){
     if(prog){prog.style.display='block';prog.textContent='파일 업로드 중...';}
     const ext=file.name.split('.').pop();
     const path='docs/'+Date.now()+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+    await ensureBucket('documents');
     const{data:upData,error:upErr}=await sb.storage.from('documents').upload(path,file);
     if(upErr){alert('파일 업로드 실패: '+upErr.message);if(prog)prog.style.display='none';return;}
     const{data:urlData}=sb.storage.from('documents').getPublicUrl(path);
