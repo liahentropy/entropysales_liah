@@ -865,16 +865,12 @@ async function loadAll(){
     _revenueGoal=parseFloat(goal.data.value)||0;
     localStorage.setItem('revenue_goal',_revenueGoal);
   }
-  // invoice_items 전체 로드 (1000개씩 페이징)
-  _items=[];
-  let _from=0;
-  while(true){
-    const {data,error}=await sb.from('invoice_items').select('*').range(_from,_from+999);
-    if(error||!data||!data.length)break;
-    _items.push(...data);
-    if(data.length<1000)break;
-    _from+=1000;
-  }
+  // invoice_items 전체 로드 (병렬로 2페이지 동시)
+  const [p1,p2]=await Promise.all([
+    sb.from('invoice_items').select('*').range(0,999),
+    sb.from('invoice_items').select('*').range(1000,1999)
+  ]);
+  _items=[...(p1.data||[]),...(p2.data||[])];
 }
 
 async function preloadAllInvFiles(){
@@ -1677,8 +1673,13 @@ function filterInv(page){
       <td style="text-align:center;position:relative" id="inv-file-td-${v.id}" onclick="event.stopPropagation()"></td>
     </tr>`;
   }).join('');
-  // 캐시된 것만 즉시 반영 (없는 건 인보이스 열 때 로드)
-  paged.forEach(v=>{ if(_invFileCache[v.id]!==undefined) updateInvFileIcon(v.id); });
+  // 캐시된 건 즉시, 없는 건 현재 페이지만 비동기 로드
+  const _toFetch=[];
+  paged.forEach(v=>{
+    if(_invFileCache[v.id]!==undefined) updateInvFileIcon(v.id);
+    else _toFetch.push(v.id);
+  });
+  if(_toFetch.length) setTimeout(()=>loadInvFileIcons(_toFetch),0);
   // 페이지네이션
   const pg=document.getElementById('inv-pagination');
   if(pg){
