@@ -856,19 +856,21 @@ async function loadAll(){
   _docs=d.data||[];
   _schedules=sch.data||[];
 
-  // invoice_items 전체 로드 (Supabase 1000개 limit 우회)
+  // invoice_items 전체 로드 (한번에 최대 5000개)
   _items=[];
   let from=0;
   const PAGE=1000;
-  while(true){
+  let safetyCount=0;
+  while(safetyCount<5){
+    safetyCount++;
     const {data,error}=await sb.from('invoice_items').select('*').range(from,from+PAGE-1);
     if(error||!data||!data.length)break;
     _items.push(...data);
     if(data.length<PAGE)break;
     from+=PAGE;
   }
-  // 인보이스 첨부파일 전체 프리로드 (백그라운드)
-  preloadAllInvFiles();
+  // 인보이스 첨부파일 프리로드는 완전 백그라운드로 (await 없이)
+  setTimeout(()=>preloadAllInvFiles(), 100);
 }
 
 async function preloadAllInvFiles(){
