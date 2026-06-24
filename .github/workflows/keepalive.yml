@@ -1,0 +1,17 @@
+name: Supabase Keepalive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # 10분마다
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        run: |
+          curl -s "https://qqmhxnwmasamkqsbnrvw.supabase.co/rest/v1/app_settings?select=key&limit=1" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxbWh4bndtYXNhbWtxc2JucnZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNzEyMTgsImV4cCI6MjA5Njc0NzIxOH0.Un7Q3tOIIjalgaSFOyrgjMa-MuZ6GXhtt6DsVnE3Vy8" \
+            -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxbWh4bndtYXNhbWtxc2JucnZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNzEyMTgsImV4cCI6MjA5Njc0NzIxOH0.Un7Q3tOIIjalgaSFOyrgjMa-MuZ6GXhtt6DsVnE3Vy8"
+          echo "Pinged Supabase"
