@@ -481,6 +481,32 @@ tr:hover td{background:var(--bg3)}
 </div>
 </div>
 
+<!-- 목표 매출 설정 모달 -->
+<div class="modal-bg" id="m-goal">
+<div class="modal" style="width:360px">
+  <div class="mhd"><h2>🎯 목표 매출 설정</h2><button class="btn btn-sm" onclick="cm('m-goal')"><i class="ti ti-x"></i></button></div>
+  <div class="mbody">
+    <div class="frow c1">
+      <div class="fg">
+        <label>목표 금액 (원)</label>
+        <input id="goal-input" type="number" placeholder="예: 1000000000" style="font-size:13px" oninput="updateGoalPreview()"/>
+        <small style="font-size:10px;color:var(--text3);margin-top:3px;display:block" id="goal-preview"></small>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+      <button class="btn btn-sm" onclick="setGoalQuick(500000000)">5억</button>
+      <button class="btn btn-sm" onclick="setGoalQuick(1000000000)">10억</button>
+      <button class="btn btn-sm" onclick="setGoalQuick(2000000000)">20억</button>
+      <button class="btn btn-sm" onclick="setGoalQuick(5000000000)">50억</button>
+    </div>
+  </div>
+  <div class="mft">
+    <button class="btn" onclick="cm('m-goal')">취소</button>
+    <button class="btn btn-primary" onclick="saveGoal()"><i class="ti ti-check"></i> 저장</button>
+  </div>
+</div>
+</div>
+
 <!-- 입고 모달 -->
 <div class="modal-bg" id="m-stock">
 <div class="modal" style="width:460px">
@@ -871,6 +897,33 @@ function renderDash(){
     <div class="kpi" style="background:linear-gradient(135deg,#1D4ED8,#2563EB);border-color:#2563EB"><div class="lbl" style="color:rgba(255,255,255,0.7)">총 Revenue</div><div class="val" style="color:#fff;font-size:22px">${fmt(totalRev)}</div></div>
     <div class="kpi"><div class="lbl">FOC 비용</div><div class="val" style="color:var(--red)">${fmt(totalFoc)}</div><div class="sub">Rev 대비 ${totalRev>0?(totalFoc/totalRev*100).toFixed(1):0}%</div></div>
     <div class="kpi"><div class="lbl">Lost 금액</div><div class="val" style="color:#993C1D">${fmt(totalLost)}</div></div>
+    ${(()=>{
+      const goal=parseFloat(localStorage.getItem('revenue_goal'))||0;
+      const pct=goal>0?Math.min(Math.round(totalRev/goal*100),100):0;
+      const barColor=pct>=100?'#2563EB':pct>=70?'#F59E0B':'#FBBF24';
+      return`<div class="kpi" style="background:linear-gradient(135deg,#FFFBEB,#FEF3C7);border:0.5px solid #FDE68A;position:relative;overflow:hidden">
+        <div style="position:absolute;top:0;right:0;width:3px;height:100%;background:#F59E0B;border-radius:0 8px 8px 0"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+          <div class="lbl" style="color:#92400E">목표 매출</div>
+          <button onclick="openGoalEdit()" style="background:none;border:none;cursor:pointer;padding:0;color:#B45309;font-size:10px;display:flex;align-items:center;gap:2px"><i class="ti ti-pencil" style="font-size:11px"></i>수정</button>
+        </div>
+        <div class="val" style="color:#92400E;font-size:16px">${goal>0?fmt(goal):'<span style="font-size:12px;color:#B45309">목표 미설정</span>'}</div>
+        ${goal>0?`
+        <div style="height:4px;background:#FDE68A;border-radius:20px;overflow:hidden;margin-top:5px">
+          <div style="height:100%;border-radius:20px;background:${barColor};width:${pct}%;transition:width .4s"></div>
+        </div>
+        <div style="font-size:10px;color:#B45309;margin-top:3px;display:flex;justify-content:space-between">
+          <span>${pct}% 달성</span>
+          <span style="color:#D97706">${fmt(goal-totalRev>0?goal-totalRev:0)} 남음</span>
+        </div>`:''}
+      </div>`;
+    })()}
+    <div class="kpi" id="dash-storage-kpi">
+      <div class="lbl">Storage 사용량</div>
+      <div class="val" style="font-size:14px" id="dash-storage-val">확인 중...</div>
+      <div style="height:4px;background:var(--bg2);border-radius:20px;overflow:hidden;margin-top:5px"><div id="dash-storage-bar" style="height:100%;border-radius:20px;background:var(--green);width:0%;transition:width .4s"></div></div>
+      <div class="sub" id="dash-storage-sub" style="margin-top:3px"></div>
+    </div>
   </div>
   <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px">
     <div class="card">
@@ -3558,7 +3611,48 @@ function filterDocs(){
   const list=_docs.filter(d=>(!cf||d.customer===cf)&&(!tf||d.type===tf));
   if(!list.length){el.innerHTML=`<div class="card"><div class="est"><i class="ti ti-folder"></i>등록된 서류 없음<br><small style="font-size:10px;margin-top:4px;display:block">거래처별 사업자등록증, 통장사본, LOA, 인증서 등을 등록하세요</small></div></div>`;return;}
   const byType={};DOC_TYPES.forEach(t=>{const docs=list.filter(d=>d.type===t);if(docs.length)byType[t]=docs;});
-  el.innerHTML=Object.entries(byType).map(([type,docs])=>`<div class="card" style="margin-bottom:10px"><div class="card-hd"><h3>${type} (${docs.length}건)</h3></div><div class="tw"><table><thead><tr><th>서류명</th><th>거래처</th><th>국가</th><th>만료일</th><th>메모</th><th></th></tr></thead><tbody>${docs.map(d=>{const exp=d.exp_date&&d.exp_date<today();return`<tr><td><span class="file-chip"><i class="ti ti-file" style="font-size:12px;color:var(--purple)"></i>${d.file_url?`<a href="${d.file_url}" target="_blank" style="color:var(--purple);text-decoration:none">${d.name} <i class="ti ti-external-link" style="font-size:10px"></i></a>`:d.name}</span></td><td>${d.customer||'-'}</td><td style="font-size:10px;color:var(--text2)">${d.country||'-'}</td><td>${d.exp_date?`<span class="badge ${exp?'bg-red':'bg-green'}">${d.exp_date}</span>`:'-'}</td><td style="font-size:10px;color:var(--text2)">${d.note||'-'}</td><td style="white-space:nowrap"><span class="alink" onclick="editDoc('${d.id}')">수정</span> <span class="alink" style="color:var(--red)" onclick="delDoc('${d.id}')">삭제</span></td></tr>`;}).join('')}</tbody></table></div></div>`).join('');
+  el.innerHTML=Object.entries(byType).map(([type,docs])=>`
+    <div class="card" style="margin-bottom:10px">
+      <div class="card-hd"><h3>${type} <span style="font-weight:400;color:var(--text3);font-size:11px">${docs.length}건</span></h3></div>
+      <div class="tw"><table style="table-layout:fixed;width:100%">
+        <colgroup>
+          <col style="width:220px"/>
+          <col style="width:130px"/>
+          <col style="width:70px"/>
+          <col style="width:100px"/>
+          <col style="width:auto"/>
+          <col style="width:80px"/>
+        </colgroup>
+        <thead><tr>
+          <th>서류명</th>
+          <th>거래처</th>
+          <th>국가</th>
+          <th>만료일</th>
+          <th>메모</th>
+          <th style="text-align:center">작업</th>
+        </tr></thead>
+        <tbody>${docs.map(d=>{
+          const exp=d.exp_date&&d.exp_date<today();
+          return`<tr>
+            <td><span class="file-chip" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;display:inline-flex">
+              <i class="ti ti-file" style="font-size:12px;color:var(--purple);flex-shrink:0"></i>
+              ${d.file_url
+                ?`<a href="${d.file_url}" target="_blank" style="color:var(--purple);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.name}">${d.name} <i class="ti ti-external-link" style="font-size:10px"></i></a>`
+                :`<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.name}">${d.name}</span>`}
+            </span></td>
+            <td style="font-size:11px">${d.customer||'-'}</td>
+            <td style="font-size:10px;color:var(--text2)">${d.country||'-'}</td>
+            <td>${d.exp_date?`<span class="badge ${exp?'bg-red':'bg-green'}">${d.exp_date}</span>`:'-'}</td>
+            <td style="font-size:10px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.note||''}">${d.note||'-'}</td>
+            <td style="text-align:center;white-space:nowrap">
+              <span class="alink" onclick="editDoc('${d.id}')">수정</span>
+              <span style="color:var(--border2);margin:0 2px">|</span>
+              <span class="alink" style="color:var(--red)" onclick="delDoc('${d.id}')">삭제</span>
+            </td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </div>`).join('');
 }
 function openDocModal(){
   _editDoc=null;
@@ -3885,10 +3979,103 @@ async function saveBulkProd(){
 async function saveProd(){const name=document.getElementById('p-name').value.trim();if(!name){alert('제품명 필수');return;}const obj={name,barcode:document.getElementById('p-barcode').value,price:parseFloat(document.getElementById('p-price').value)||0,cat:document.getElementById('p-cat').value,status:document.getElementById('p-status').value,name_eng:document.getElementById('p-name-eng').value,cartoon:parseInt(document.getElementById('p-cartoon').value)||0,inbox:parseInt(document.getElementById('p-inbox').value)||0};if(_editProd){await sb.from('products').update(obj).eq('id',_editProd.id);const idx=_products.findIndex(p=>p.id===_editProd.id);if(idx>=0)_products[idx]={..._editProd,...obj};}else{const{data}=await sb.from('products').insert(obj).select().single();if(data)_products.push(data);}cm('m-prod');renderProducts();toast('저장됐습니다!');}
 async function delProd(id){if(!confirm('삭제하시겠습니까?'))return;await sb.from('products').delete().eq('id',id);_products=_products.filter(p=>p.id!==id);renderProducts();}
 
+// ─── 목표 매출 ───
+function openGoalEdit(){
+  const cur=parseFloat(localStorage.getItem('revenue_goal'))||0;
+  const inp=document.getElementById('goal-input');
+  if(inp)inp.value=cur||'';
+  updateGoalPreview();
+  om('m-goal');
+}
+function updateGoalPreview(){
+  const v=parseFloat(document.getElementById('goal-input')?.value)||0;
+  const el=document.getElementById('goal-preview');
+  if(el)el.textContent=v>0?'= '+fmt(v):'';
+}
+function setGoalQuick(v){
+  const inp=document.getElementById('goal-input');
+  if(inp){inp.value=v;updateGoalPreview();}
+}
+function saveGoal(){
+  const v=parseFloat(document.getElementById('goal-input')?.value)||0;
+  if(v<=0){toast('금액을 입력해주세요.');return;}
+  localStorage.setItem('revenue_goal',v);
+  cm('m-goal');
+  renderDash();
+  toast('🎯 목표 매출 저장됐습니다!');
+}
+
+// ─── Storage 사용량 체크 ───
+async function checkStorageUsage(){
+  try{
+    // Supabase 대시보드 API로 버킷별 사이즈 합산
+    const buckets=['invoice-docs','documents'];
+    let totalBytes=0;
+    for(const bucket of buckets){
+      // 재귀적으로 모든 파일 사이즈 합산
+      const{data,error}=await sb.storage.from(bucket).list('',{limit:1000});
+      if(error||!data)continue;
+      // 폴더(인보이스 ID)들 순회
+      for(const folder of data){
+        if(!folder.id){
+          // 폴더인 경우 내부 파일 조회
+          const{data:files}=await sb.storage.from(bucket).list(folder.name,{limit:1000});
+          if(files)files.forEach(f=>{if(f.metadata?.size)totalBytes+=f.metadata.size;});
+        } else {
+          if(folder.metadata?.size)totalBytes+=folder.metadata.size;
+        }
+      }
+    }
+    const usedMB=totalBytes/1024/1024;
+    const limitMB=1024; // 1GB 무료 한도
+    const pct=usedMB/limitMB*100;
+
+    // 대시보드에 스토리지 뱃지 표시
+    window._storageUsedMB=usedMB;
+    window._storagePct=pct;
+    // 대시보드 KPI 업데이트
+    const valEl=document.getElementById('dash-storage-val');
+    const barEl=document.getElementById('dash-storage-bar');
+    const subEl=document.getElementById('dash-storage-sub');
+    if(valEl)valEl.textContent=usedMB<1?`${(usedMB*1024).toFixed(0)}KB / 1GB`:`${usedMB.toFixed(1)}MB / 1GB`;
+    if(barEl){barEl.style.width=Math.min(pct,100)+'%';barEl.style.background=pct>=90?'var(--red)':pct>=70?'var(--amber)':'var(--green)';}
+    if(subEl){subEl.textContent=pct.toFixed(1)+'% 사용 중';subEl.style.color=pct>=90?'var(--red)':pct>=70?'var(--amber)':'var(--text3)';}
+
+    if(pct>=90){
+      // 90% 이상 - 빨간 경고
+      showStorageAlert(usedMB,limitMB,pct,'red');
+    } else if(pct>=70){
+      // 70% 이상 - 노란 경고
+      showStorageAlert(usedMB,limitMB,pct,'amber');
+    }
+  }catch(e){console.warn('storage check failed:',e);}
+}
+
+function showStorageAlert(usedMB,limitMB,pct,level){
+  const existing=document.getElementById('storage-alert');
+  if(existing)existing.remove();
+  const color=level==='red'?'var(--red)':'var(--amber)';
+  const bg=level==='red'?'var(--red-light)':'var(--amber-light)';
+  const icon=level==='red'?'ti-alert-circle':'ti-alert-triangle';
+  const msg=level==='red'
+    ?`⚠️ Storage 용량이 ${pct.toFixed(1)}% 찼습니다! 곧 업로드가 불가능해집니다.`
+    :`Storage 용량이 ${pct.toFixed(1)}% 사용 중입니다. (${usedMB.toFixed(0)}MB / ${limitMB}MB)`;
+  const el=document.createElement('div');
+  el.id='storage-alert';
+  el.style.cssText=`position:fixed;top:52px;left:192px;right:0;z-index:99;background:${bg};border-bottom:1px solid ${color};padding:7px 18px;display:flex;align-items:center;gap:8px;font-size:11px;color:${color}`;
+  el.innerHTML=`<i class="ti ${icon}" style="font-size:14px;flex-shrink:0"></i>
+    <span style="flex:1">${msg}</span>
+    <a href="https://supabase.com/dashboard/project/qqmhxnwmasamkqsbnrvw/settings/storage" target="_blank" style="color:${color};font-weight:600;text-decoration:underline">용량 확인</a>
+    <button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:${color};font-size:14px;padding:0 4px;line-height:1">×</button>`;
+  document.body.appendChild(el);
+}
+
 // ─── 초기화 ───
 (async()=>{
   await loadAll();
   go('dash');
+  // 스토리지 사용량 백그라운드 체크
+  setTimeout(checkStorageUsage, 3000);
 })();
 </script>
 </body>
