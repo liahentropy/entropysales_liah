@@ -1467,8 +1467,12 @@ async function loadInvDocs(invId){
   el.innerHTML='불러오는 중...';
   try{
     const {data,error}=await sb.storage.from('invoice-docs').list(invId+'/');
-    if(error||!data||!data.length){el.innerHTML='<span style="color:var(--text3)">첨부 파일 없음</span>';return;}
-    el.innerHTML=data.map(f=>{
+    const files=(error||!data)?[]:data.filter(f=>f.name&&f.name!=='.emptyFolderPlaceholder');
+    // 캐시 업데이트 & 아이콘 갱신
+    _invFileCache[invId]=files;
+    updateInvFileIcon(invId);
+    if(!files.length){el.innerHTML='<span style="color:var(--text3)">첨부 파일 없음</span>';return;}
+    el.innerHTML=files.map(f=>{
       const {data:urlData}=sb.storage.from('invoice-docs').getPublicUrl(invId+'/'+f.name);
       const url=urlData?.publicUrl||'';
       return`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid var(--border)">
@@ -1526,7 +1530,7 @@ function renderInvoices(){
     <select id="fi-mg" onchange="filterInv()"><option value="">담당자 전체</option>${MGRS.map(m=>`<option>${m}</option>`).join('')}</select>
   </div>
   <div class="card"><div class="tw"><table>
-    <thead><tr><th>인보이스 번호</th><th>거래처</th><th class="inv-hide-mobile">담당자</th><th class="inv-hide-mobile">발주일</th><th style="text-align:right">매출</th><th style="text-align:right" class="inv-hide-mobile">FOC</th><th>입금 ✎</th><th>출고 ✎</th><th class="inv-hide-mobile">Tracking No.</th><th>📎</th></tr></thead>
+    <thead><tr><th>인보이스 번호</th><th>거래처</th><th class="inv-hide-mobile">담당자</th><th class="inv-hide-mobile">발주일</th><th style="text-align:right">매출</th><th style="text-align:right" class="inv-hide-mobile">FOC</th><th>입금 ✎</th><th>출고 ✎</th><th class="inv-hide-mobile">Tracking No.</th><th>첨부파일</th></tr></thead>
     <tbody id="inv-tbody"></tbody>
   </table></div></div>
   <div id="inv-pagination"></div>`;
@@ -1569,9 +1573,7 @@ function filterInv(page){
       <td onclick="event.stopPropagation()"><input type="text" placeholder="-" value="${v.tracking_num||''}"
         style="border:none;background:transparent;font-size:11px;width:120px;color:var(--text);outline:none;border-bottom:1px solid var(--border);padding:2px 4px"
         onchange="updTracking('${v.id}',this.value)"/></td>
-      <td style="text-align:center;position:relative" id="inv-file-td-${v.id}" onclick="event.stopPropagation()">
-        <i class="ti ti-paperclip" style="font-size:13px;color:var(--border2)" id="inv-file-icon-${v.id}"></i>
-      </td>
+      <td style="text-align:center;position:relative" id="inv-file-td-${v.id}" onclick="event.stopPropagation()"></td>
     </tr>`;
   }).join('');
   // 첨부파일 아이콘 비동기 로드
@@ -1613,7 +1615,7 @@ function updateInvFileIcon(id){
   const td=document.getElementById('inv-file-td-'+id);
   if(!td)return;
   if(!files.length){
-    td.innerHTML='<i class="ti ti-paperclip" style="font-size:13px;color:var(--border2)"></i>';
+    td.innerHTML='';
     return;
   }
   // 파일 확장자별 아이콘
@@ -1813,7 +1815,8 @@ function viewInv(id){
   document.getElementById('view-del-btn').onclick=()=>{cm('m-inv-view');delInv(id);};
   document.getElementById('view-dl-btn').onclick=()=>{cm('m-inv-view');downloadMeongse(v);};
   document.getElementById('view-edit-btn').onclick=()=>{cm('m-inv-view');editInv(id);};
-  // 첨부 파일 목록 로드
+  // 첨부 파일 목록 로드 (캐시 무효화 후)
+  delete _invFileCache[id];
   loadInvDocs(id);
   om('m-inv-view');
 }
