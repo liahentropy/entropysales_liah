@@ -804,6 +804,7 @@ const MGRS = ['liah','Grace','Raye','Chloe','Ethan'];
 const SALES_TYPES = ['Paid','FOC','GWP','Sample','Replacement','Lost'];
 const INV_ST = ['Ordered','Paid','Closed','Cancelled'];
 const TAX_ST = ['발행예정','발행완료','취소'];
+let _taxRecords=[]; // {customer_id, month, status}
 const DOC_TYPES = ['사업자등록증','통장사본','LOA','인증서','제품 서류','계약서','기타'];
 const SUPPLIER = {name:'㈜브랜드지놈',addr:'서울특별시 용산구 독서당로 94, 4층',ceo:'박소희',contact:'박주현',phone:'010-3170-3423',bizType:'도매 및 소매업'};
 
@@ -846,14 +847,15 @@ function fillCustSel(id,sel=''){
 // ─── 데이터 로드 ───
 async function loadAll(){
   // 모든 쿼리 동시에 병렬 실행
-  const [c,p,inv,s,d,sch,goal]=await Promise.all([
+  const [c,p,inv,s,d,sch,goal,tr]=await Promise.all([
     sb.from('customers').select('*').order('name'),
     sb.from('products').select('*').order('name'),
     sb.from('invoices').select('*').order('order_date',{ascending:false}),
     sb.from('stocks').select('*').order('date'),
     sb.from('documents').select('*').order('created_at',{ascending:false}),
     sb.from('schedules').select('*').order('date'),
-    sb.from('app_settings').select('value').eq('key','revenue_goal').maybeSingle()
+    sb.from('app_settings').select('value').eq('key','revenue_goal').maybeSingle(),
+    sb.from('tax_records').select('*')
   ]);
   _customers=c.data||[];
   _products=p.data||[];
@@ -865,6 +867,7 @@ async function loadAll(){
     _revenueGoal=parseFloat(goal.data.value)||0;
     localStorage.setItem('revenue_goal',_revenueGoal);
   }
+  _taxRecords=tr.data||[];
   // invoice_items 전체 로드 (병렬로 2페이지 동시)
   const [p1,p2]=await Promise.all([
     sb.from('invoice_items').select('*').range(0,999),
@@ -1702,14 +1705,19 @@ function filterInv(page){
 const _invFileCache={};
 
 async function loadInvFileIcons(invIds){
-  for(const id of invIds){
-    if(_invFileCache[id]!==undefined)continue;
+  const toFetch=invIds.filter(id=>_invFileCache[id]===undefined);
+  if(!toFetch.length){
+    invIds.forEach(id=>updateInvFileIcon(id));
+    return;
+  }
+  // 병렬로 한번에 다 가져오기
+  await Promise.all(toFetch.map(async id=>{
     try{
       const{data,error}=await sb.storage.from('invoice-docs').list(id+'/');
-      _invFileCache[id]=(error||!data)?[]:(data.filter(f=>f.name&&f.name!=='.emptyFolderPlaceholder'));
+      _invFileCache[id]=(error||!data)?[]:data.filter(f=>f.name&&f.name!=='.emptyFolderPlaceholder');
     }catch(e){_invFileCache[id]=[];}
-    updateInvFileIcon(id);
-  }
+  }));
+  invIds.forEach(id=>updateInvFileIcon(id));
 }
 
 function updateInvFileIcon(id){
@@ -3229,7 +3237,7 @@ function renderTax(){
       customer:inv.customer,custId:c.id,mgr:c.mgr,
       taxType:c.tax||'영세',country:c.country,
       amt:0,invoices:[],
-      taxStatus:c.tax_status||'발행예정'
+      taxStatus:(_taxRecords.find(r=>r.customer_id===c.id&&r.month===m)||{}).status||'발행예정'
     };
     monthMap[m][inv.customer].amt+=rev;
     monthMap[m][inv.customer].invoices.push(inv.no);
@@ -3316,12 +3324,18 @@ function filterTax(){
 }
 
 async function updTaxSt2(custId,name,month,val,el){
-  await sb.from('customers').update({tax_status:val}).eq('id',custId);
-  const c=custByName(name);if(c)c.tax_status=val;
+  // tax_records 테이블에 월별 상태 저장 (upsert)
+  await sb.from('tax_records').upsert(
+    {customer_id:custId,month,status:val},
+    {onConflict:'customer_id,month'}
+  );
+  // 캐시 업데이트
+  const idx=_taxRecords.findIndex(r=>r.customer_id===custId&&r.month===month);
+  if(idx>=0)_taxRecords[idx].status=val;
+  else _taxRecords.push({customer_id:custId,month,status:val});
   if(el)el.className='ss s'+val.replace(/\s/g,'');
-  // monthMap 업데이트
   if(window._taxMonthMap?.[month]?.[name])window._taxMonthMap[month][name].taxStatus=val;
-  toast('계산서: '+val);
+  toast('계산서 상태: '+val);
 }
 
 function exportTax(){
