@@ -4191,6 +4191,8 @@ async function signOut(){
 }
 
 // auth 상태 변화 감지 (OAuth 콜백 후 자동 처리)
+let _appLoaded = false;
+
 sb.auth.onAuthStateChange(async (event, session) => {
   if(event === 'SIGNED_IN' && session){
     const email = session.user?.email || '';
@@ -4200,25 +4202,40 @@ sb.auth.onAuthStateChange(async (event, session) => {
       showLoginError('❌ ' + ALLOWED_DOMAIN + ' 계정만 접근 가능합니다. (' + email + ')');
       return;
     }
-    if(document.getElementById('main-app').style.display === 'none'){
+    // 아직 앱이 안 로드됐을 때만 (OAuth 리다이렉트 콜백)
+    if(!_appLoaded){
+      _appLoaded = true;
       showMainApp(session.user);
       await loadAll();
       go('dash');
       setTimeout(checkStorageUsage, 3000);
     }
   } else if(event === 'SIGNED_OUT'){
+    _appLoaded = false;
     showLoginScreen();
   }
 });
 
 // ─── 초기화 ───
 (async()=>{
-  const ok = await checkAuth();
-  if(ok){
-    await loadAll();
-    go('dash');
-    setTimeout(checkStorageUsage, 3000);
+  const { data: { session } } = await sb.auth.getSession();
+  if(!session){
+    showLoginScreen();
+    return;
   }
+  const email = session.user?.email || '';
+  if(!email.endsWith('@' + ALLOWED_DOMAIN)){
+    await sb.auth.signOut();
+    showLoginScreen();
+    showLoginError('❌ ' + ALLOWED_DOMAIN + ' 계정만 접근 가능합니다. (' + email + ')');
+    return;
+  }
+  // 세션 있으면 바로 앱 로드
+  _appLoaded = true;
+  showMainApp(session.user);
+  await loadAll();
+  go('dash');
+  setTimeout(checkStorageUsage, 3000);
 })();
 </script>
 </body>
