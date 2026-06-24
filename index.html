@@ -453,7 +453,7 @@ tr:hover td{background:var(--bg3)}
 <!-- 서류 모달 -->
 <div class="modal-bg" id="m-doc">
 <div class="modal" style="width:520px">
-  <div class="mhd"><h2>서류 등록</h2><button class="btn btn-sm" onclick="cm('m-doc')"><i class="ti ti-x"></i></button></div>
+  <div class="mhd"><h2 id="m-doc-title">서류 등록</h2><button class="btn btn-sm" onclick="cm('m-doc')"><i class="ti ti-x"></i></button></div>
   <div class="mbody">
     <div class="frow"><div class="fg"><label>거래처</label><select id="d-cust"></select></div><div class="fg"><label>서류 종류</label><select id="d-type"><option>사업자등록증</option><option>통장사본</option><option>LOA</option><option>인증서</option><option>제품 서류</option><option>계약서</option><option>기타</option></select></div></div>
     <div class="frow c1"><div class="fg"><label>서류명 *</label><input id="d-name"/></div></div>
@@ -477,7 +477,7 @@ tr:hover td{background:var(--bg3)}
     </div>
     <div id="d-upload-progress" style="display:none;margin-top:6px;font-size:11px;color:var(--text2)"></div>
   </div>
-  <div class="mft"><button class="btn" onclick="cm('m-doc')">취소</button><button class="btn btn-primary" onclick="saveDoc()">저장</button></div>
+  <div class="mft"><button class="btn" onclick="cm('m-doc')">취소</button><button class="btn btn-primary" id="m-doc-save-btn" onclick="saveDoc()">저장</button></div>
 </div>
 </div>
 
@@ -3558,10 +3558,41 @@ function filterDocs(){
   const list=_docs.filter(d=>(!cf||d.customer===cf)&&(!tf||d.type===tf));
   if(!list.length){el.innerHTML=`<div class="card"><div class="est"><i class="ti ti-folder"></i>등록된 서류 없음<br><small style="font-size:10px;margin-top:4px;display:block">거래처별 사업자등록증, 통장사본, LOA, 인증서 등을 등록하세요</small></div></div>`;return;}
   const byType={};DOC_TYPES.forEach(t=>{const docs=list.filter(d=>d.type===t);if(docs.length)byType[t]=docs;});
-  el.innerHTML=Object.entries(byType).map(([type,docs])=>`<div class="card" style="margin-bottom:10px"><div class="card-hd"><h3>${type} (${docs.length}건)</h3></div><div class="tw"><table><thead><tr><th>서류명</th><th>거래처</th><th>국가</th><th>만료일</th><th>메모</th><th></th></tr></thead><tbody>${docs.map(d=>{const exp=d.exp_date&&d.exp_date<today();return`<tr><td><span class="file-chip"><i class="ti ti-file" style="font-size:12px;color:var(--purple)"></i>${d.file_url?`<a href="${d.file_url}" target="_blank" style="color:var(--purple);text-decoration:none">${d.name} <i class="ti ti-external-link" style="font-size:10px"></i></a>`:d.name}</span></td><td>${d.customer||'-'}</td><td style="font-size:10px;color:var(--text2)">${d.country||'-'}</td><td>${d.exp_date?`<span class="badge ${exp?'bg-red':'bg-green'}">${d.exp_date}</span>`:'-'}</td><td style="font-size:10px;color:var(--text2)">${d.note||'-'}</td><td><span class="alink" style="color:var(--red)" onclick="delDoc('${d.id}')">삭제</span></td></tr>`;}).join('')}</tbody></table></div></div>`).join('');
+  el.innerHTML=Object.entries(byType).map(([type,docs])=>`<div class="card" style="margin-bottom:10px"><div class="card-hd"><h3>${type} (${docs.length}건)</h3></div><div class="tw"><table><thead><tr><th>서류명</th><th>거래처</th><th>국가</th><th>만료일</th><th>메모</th><th></th></tr></thead><tbody>${docs.map(d=>{const exp=d.exp_date&&d.exp_date<today();return`<tr><td><span class="file-chip"><i class="ti ti-file" style="font-size:12px;color:var(--purple)"></i>${d.file_url?`<a href="${d.file_url}" target="_blank" style="color:var(--purple);text-decoration:none">${d.name} <i class="ti ti-external-link" style="font-size:10px"></i></a>`:d.name}</span></td><td>${d.customer||'-'}</td><td style="font-size:10px;color:var(--text2)">${d.country||'-'}</td><td>${d.exp_date?`<span class="badge ${exp?'bg-red':'bg-green'}">${d.exp_date}</span>`:'-'}</td><td style="font-size:10px;color:var(--text2)">${d.note||'-'}</td><td style="white-space:nowrap"><span class="alink" onclick="editDoc('${d.id}')">수정</span> <span class="alink" style="color:var(--red)" onclick="delDoc('${d.id}')">삭제</span></td></tr>`;}).join('')}</tbody></table></div></div>`).join('');
 }
-function openDocModal(){fillCustSel('d-cust','');['d-name','d-country','d-note'].forEach(id=>document.getElementById(id).value='');document.getElementById('d-exp').value='';const fi=document.getElementById('d-file');if(fi)fi.value='';_docFile=null;const lbl=document.getElementById('d-file-name');if(lbl)lbl.textContent='클릭하거나 끌어다 놓으세요';const dp=document.getElementById('d-upload-progress');if(dp){dp.textContent='';dp.style.display='none';}om('m-doc');}
+function openDocModal(){
+  _editDoc=null;
+  document.getElementById('m-doc-title').textContent='서류 등록';
+  document.getElementById('m-doc-save-btn').textContent='저장';
+  fillCustSel('d-cust','');
+  ['d-name','d-country','d-note'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('d-exp').value='';
+  const fi=document.getElementById('d-file');if(fi)fi.value='';
+  _docFile=null;
+  const lbl=document.getElementById('d-file-name');if(lbl)lbl.textContent='클릭하거나 끌어다 놓으세요';
+  const dp=document.getElementById('d-upload-progress');if(dp){dp.textContent='';dp.style.display='none';}
+  om('m-doc');
+}
 let _docFile=null;
+let _editDoc=null;
+
+function editDoc(id){
+  const d=_docs.find(x=>x.id===id);if(!d)return;
+  _editDoc=d;
+  document.getElementById('m-doc-title').textContent='서류 수정';
+  document.getElementById('m-doc-save-btn').textContent='수정 저장';
+  fillCustSel('d-cust',d.customer||'');
+  document.getElementById('d-name').value=d.name||'';
+  document.getElementById('d-country').value=d.country||'';
+  document.getElementById('d-note').value=d.note||'';
+  document.getElementById('d-exp').value=d.exp_date||'';
+  document.getElementById('d-type').value=d.type||'기타';
+  _docFile=null;
+  const lbl=document.getElementById('d-file-name');
+  if(lbl)lbl.textContent=d.file_url?'📄 현재 파일 유지 (새 파일 선택 시 교체)':'클릭하거나 끌어다 놓으세요';
+  const dp=document.getElementById('d-upload-progress');if(dp){dp.textContent='';dp.style.display='none';}
+  om('m-doc');
+}
 function docFileSelect(input){
   _docFile=input.files[0]||null;
   const lbl=document.getElementById('d-file-name');
@@ -3579,12 +3610,13 @@ async function saveDoc(){
   if(!name){alert('서류명 필수');return;}
   const file=_docFile||document.getElementById('d-file')?.files?.[0];
   const prog=document.getElementById('d-upload-progress');
-  let fileUrl=null;let filePath=null;
+  let fileUrl=_editDoc?.file_url||null;
+  let filePath=_editDoc?.file_path||null;
   if(file){
     if(prog){prog.style.display='block';prog.textContent='파일 업로드 중...';}
-    const ext=file.name.split('.').pop();
     const path='docs/'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
-    const{data:upData,error:upErr}=await sb.storage.from('documents').upload(path,file);
+    // upsert:true 로 같은 이름 파일 덮어쓰기 허용
+    const{data:upData,error:upErr}=await sb.storage.from('documents').upload(path,file,{upsert:true});
     if(upErr){alert('파일 업로드 실패: '+upErr.message);if(prog)prog.style.display='none';return;}
     const{data:urlData}=sb.storage.from('documents').getPublicUrl(path);
     fileUrl=urlData?.publicUrl||null;
@@ -3592,9 +3624,16 @@ async function saveDoc(){
     if(prog)prog.textContent='업로드 완료!';
   }
   const obj={name,customer:document.getElementById('d-cust').value,type:document.getElementById('d-type').value,country:document.getElementById('d-country').value,exp_date:document.getElementById('d-exp').value||null,note:document.getElementById('d-note').value,file_url:fileUrl,file_path:filePath};
-  const{data}=await sb.from('documents').insert(obj).select().single();
-  if(data)_docs.unshift(data);
-  cm('m-doc');filterDocs();toast('서류 등록됐습니다!');
+  if(_editDoc){
+    await sb.from('documents').update(obj).eq('id',_editDoc.id);
+    const idx=_docs.findIndex(d=>d.id===_editDoc.id);
+    if(idx>=0)_docs[idx]={..._editDoc,...obj};
+    cm('m-doc');filterDocs();toast('서류 수정됐습니다!');
+  } else {
+    const{data}=await sb.from('documents').insert(obj).select().single();
+    if(data)_docs.unshift(data);
+    cm('m-doc');filterDocs();toast('서류 등록됐습니다!');
+  }
 }
 async function delDoc(id){if(!confirm('삭제하시겠습니까?'))return;await sb.from('documents').delete().eq('id',id);_docs=_docs.filter(d=>d.id!==id);filterDocs();}
 
