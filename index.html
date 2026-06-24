@@ -872,8 +872,7 @@ async function loadAll(){
     if(data.length<PAGE)break;
     from+=PAGE;
   }
-  // 인보이스 첨부파일 프리로드는 완전 백그라운드로 (await 없이)
-  setTimeout(()=>preloadAllInvFiles(), 100);
+  // 첨부파일은 인보이스 목록 열 때 필요한 것만 로드
 }
 
 async function preloadAllInvFiles(){
@@ -958,9 +957,9 @@ function renderDash(){
         </div>`:''}
       </div>`;
     })()}
-    <div class="kpi" id="dash-storage-kpi">
+    <div class="kpi" id="dash-storage-kpi" style="cursor:pointer" onclick="runStorageCheck()" title="클릭해서 확인">
       <div class="lbl">Storage 사용량</div>
-      <div class="val" style="font-size:14px" id="dash-storage-val">확인 중...</div>
+      <div class="val" style="font-size:14px" id="dash-storage-val"><span style="font-size:11px;color:var(--text3)">클릭해서 확인 →</span></div>
       <div style="height:4px;background:var(--bg2);border-radius:20px;overflow:hidden;margin-top:5px"><div id="dash-storage-bar" style="height:100%;border-radius:20px;background:var(--green);width:0%;transition:width .4s"></div></div>
       <div class="sub" id="dash-storage-sub" style="margin-top:3px"></div>
     </div>
@@ -4046,6 +4045,12 @@ function saveGoal(){
 }
 
 // ─── Storage 사용량 체크 ───
+async function runStorageCheck(){
+  const el=document.getElementById('dash-storage-val');
+  if(el)el.innerHTML='<span style="font-size:11px;color:var(--text3)">확인 중...</span>';
+  await checkStorageUsage();
+}
+
 async function checkStorageUsage(){
   try{
     // Supabase 대시보드 API로 버킷별 사이즈 합산
@@ -4202,7 +4207,6 @@ sb.auth.onAuthStateChange(async (event, session) => {
       showMainApp(session.user);
       await loadAll();
       go('dash');
-      setTimeout(checkStorageUsage, 3000);
     }
   } else if(event === 'SIGNED_OUT'){
     _appLoaded = false;
@@ -4229,7 +4233,6 @@ sb.auth.onAuthStateChange(async (event, session) => {
   showMainApp(session.user);
   await loadAll();
   go('dash');
-  setTimeout(checkStorageUsage, 3000);
 })();
 </script>
 </body>
