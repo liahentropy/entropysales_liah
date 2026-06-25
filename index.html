@@ -816,7 +816,7 @@ let _uploadData=null;
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 function fmt(n){if(!n&&n!==0)return'-';const v=parseFloat(n);if(isNaN(v))return'-';return'₩'+Math.round(v).toLocaleString('ko-KR');}
 function fmtN(n){return Math.round(parseFloat(n)||0).toLocaleString('ko-KR');}
-function today(){return new Date().toISOString().split('T')[0];}
+function today(){const d=new Date();d.setHours(d.getHours()+9);return d.toISOString().split('T')[0];}
 function om(id){document.getElementById(id).classList.add('open');}
 function cm(id){document.getElementById(id).classList.remove('open');}
 function custByName(n){return _customers.find(x=>x.name===n);}
@@ -3466,7 +3466,7 @@ function buildCalendar(){
   const yr=_calYear,mo=_calMonth;
   const firstDay=new Date(yr,mo,1).getDay();
   const daysInMonth=new Date(yr,mo+1,0).getDate();
-  const today=new Date().toISOString().slice(0,10);
+  const _now=new Date();_now.setHours(_now.getHours()+9);const today=_now.toISOString().slice(0,10);
   const moStr=String(mo+1).padStart(2,'0');
 
   // 날짜별 매출 집계 (Paid 기준)
