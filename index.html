@@ -4457,7 +4457,7 @@ function buildCustAnalysis(cust){
           <td style="font-size:11px">${v.manager||'-'}</td>
           <td style="text-align:right;font-size:11px">${vp>0?fmt(vp):'-'}</td>
           <td style="text-align:right;font-size:11px;color:var(--red)">${vf>0?fmt(vf):'-'}</td>
-          <td><span class="badge ${v.pay_status==='Paid'?'bg-green':'bg-amber'}">${v.pay_status||'미확인'}</span></td>
+          <td><span class="badge ${v.status==='Paid'?'bg-green':'bg-amber'}">${v.status==='Paid'?'입금완료':'미입금'}</span></td>
           <td><span class="badge ${v.ship_status==='출고완료'?'bg-green':'bg-amber'}">${v.ship_status||'미출고'}</span></td>
         </tr>`;
       }).join('')}</tbody>
@@ -4680,7 +4680,7 @@ function printCustReport(){
             <td>${v.manager||'-'}</td>
             <td class="num">${vp>0?fmt(vp):'-'}</td>
             <td class="num" style="color:#DC2626">${vf>0?fmt(vf):'-'}</td>
-            <td><span class="badge ${v.pay_status==='Paid'?'b-blue':'b-gray'}">${v.pay_status||'미확인'}</span></td>
+            <td><span class="badge ${v.status==='Paid'?'b-blue':'b-gray'}">${v.status==='Paid'?'입금완료':'미입금'}</span></td>
             <td><span class="badge ${v.ship_status==='출고완료'?'b-blue':'b-gray'}">${v.ship_status||'미출고'}</span></td>
           </tr>`;
         }).join('')}
