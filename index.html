@@ -153,6 +153,19 @@ tr:hover td{background:var(--bg3)}
 .inv-file-item:hover{background:var(--bg3)}
 .inv-file-item i{font-size:13px;flex-shrink:0}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+@media print{
+  body{background:#fff!important;color:#000!important}
+  .sidebar,.topbar,#login-screen,#toast,.modal-bg{display:none!important}
+  .main{margin:0!important;padding:0!important}
+  .content{padding:0!important;overflow:visible!important;height:auto!important}
+  #ca-print-btn{display:none!important}
+  .print-report{display:block!important}
+  .no-print{display:none!important}
+  @page{margin:15mm;size:A4}
+  .print-page-break{page-break-before:always}
+}
+.print-report{display:none}
 .month-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:12px}
 .mcard{background:var(--bg3);border-radius:var(--radius);padding:7px 10px}
 .mcard .ml{font-size:10px;color:var(--text2);margin-bottom:2px}
@@ -293,6 +306,7 @@ tr:hover td{background:var(--bg3)}
     </div>
     <div class="ns">메인</div>
     <div class="ni active" onclick="go('dash')" id="nav-dash"><i class="ti ti-layout-dashboard"></i>대시보드</div>
+    <div class="ni" onclick="go('custanalysis')" id="nav-custanalysis"><i class="ti ti-chart-donut"></i>업체별 분석</div>
     <div class="ns">영업</div>
     <div class="ni" onclick="go('invoices')" id="nav-invoices"><i class="ti ti-file-invoice"></i>인보이스</div>
     <div class="ni" onclick="go('raw')" id="nav-raw"><i class="ti ti-table"></i>RAW 데이터</div>
@@ -893,7 +907,7 @@ function go(page){
   const n=document.getElementById('nav-'+page);if(n)n.classList.add('active');
   const titles={dash:'대시보드',upload:'파일 업로드 → 인보이스 생성',invoices:'인보이스',raw:'RAW 데이터',monthly:'월별 현황',forecast:'재고 포캐스팅',tax:'세금계산서',customers:'거래처 마스터',docs:'서류 관리',products:'제품 목록',calendar:'달력'};
   document.getElementById('page-title').textContent=titles[page]||page;
-  ({dash:renderDash,upload:renderUpload,invoices:renderInvoices,raw:renderRaw,monthly:renderMonthly,forecast:renderForecast,tax:renderTax,customers:renderCustomers,docs:renderDocs,products:renderProducts,calendar:renderCalendar})[page]?.();
+  ({dash:renderDash,upload:renderUpload,invoices:renderInvoices,raw:renderRaw,monthly:renderMonthly,forecast:renderForecast,tax:renderTax,customers:renderCustomers,docs:renderDocs,products:renderProducts,calendar:renderCalendar,custanalysis:renderCustAnalysis})[page]?.();
 }
 
 
@@ -4290,6 +4304,416 @@ function keepAlive(){
   keepAlive();
   keepAlive();
 })();
+
+// ─── 업체별 분석 ───
+let _caSelected='';
+
+function renderCustAnalysis(){
+  const custNames=[...new Set(_invoices.map(v=>v.customer).filter(Boolean))].sort();
+  if(!_caSelected&&custNames.length)_caSelected=custNames[0];
+
+  document.getElementById('content').innerHTML=`
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+    <select id="ca-sel" onchange="_caSelected=this.value;renderCustAnalysis()" style="font-size:13px;font-weight:600;padding:6px 12px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);min-width:200px">
+      ${custNames.map(n=>`<option value="${n}" ${n===_caSelected?'selected':''}>${n}</option>`).join('')}
+    </select>
+    <span style="font-size:11px;color:var(--text3)">업체를 선택하세요</span>
+    <button id="ca-print-btn" class="btn btn-primary" onclick="printCustReport()" style="margin-left:auto"><i class="ti ti-file-type-pdf"></i> PDF 보고서</button>
+  </div>
+  <div id="ca-body"></div>`;
+
+  if(!_caSelected)return;
+  buildCustAnalysis(_caSelected);
+}
+
+function buildCustAnalysis(cust){
+  const invs=_invoices.filter(v=>v.customer===cust);
+  const items=_items.filter(i=>invs.find(v=>v.id===i.invoice_id));
+
+  // 타입별 금액
+  const paid=items.filter(i=>i.sales_type==='Paid').reduce((a,i)=>a+(i.qty||0)*(i.price||0),0);
+  const foc=items.filter(i=>i.sales_type==='FOC').reduce((a,i)=>a+(i.qty||0)*(i.price||0),0);
+  const sample=items.filter(i=>i.sales_type==='Sample').reduce((a,i)=>a+(i.qty||0)*(i.price||0),0);
+  const lost=items.filter(i=>i.sales_type==='Lost').reduce((a,i)=>a+(i.qty||0)*(i.price||0),0);
+  const total=paid+foc+sample+lost;
+  const pct=(v)=>total>0?((v/total)*100).toFixed(1):0;
+
+  // 월별 매출
+  const monthMap={};
+  invs.forEach(v=>{
+    if(!v.order_date)return;
+    const m=v.order_date.slice(0,7);
+    if(!monthMap[m])monthMap[m]={paid:0,foc:0,sample:0,lost:0};
+    const iItems=_items.filter(i=>i.invoice_id===v.id);
+    iItems.forEach(i=>{
+      const amt=(i.qty||0)*(i.price||0);
+      const t=(i.sales_type||'').toLowerCase();
+      if(t==='paid')monthMap[m].paid+=amt;
+      else if(t==='foc')monthMap[m].foc+=amt;
+      else if(t==='sample')monthMap[m].sample+=amt;
+      else if(t==='lost')monthMap[m].lost+=amt;
+    });
+  });
+  const months=Object.keys(monthMap).sort();
+
+  // 품목별 TOP10
+  const prodMap={};
+  items.filter(i=>i.sales_type==='Paid').forEach(i=>{
+    const k=i.product_name||i.name||'기타';
+    if(!prodMap[k])prodMap[k]={qty:0,amt:0};
+    prodMap[k].qty+=(i.qty||0);
+    prodMap[k].amt+=(i.qty||0)*(i.price||0);
+  });
+  const topProds=Object.entries(prodMap).sort((a,b)=>b[1].amt-a[1].amt).slice(0,10);
+  const maxAmt=topProds[0]?.[1]?.amt||1;
+
+  // 최근 발주일
+  const lastOrder=invs.sort((a,b)=>(b.order_date||'').localeCompare(a.order_date||''))[0]?.order_date||'-';
+  const avgOrder=invs.length>0?Math.round(paid/invs.length):0;
+
+  // 차트 데이터
+  const chartId='ca-chart-'+Date.now();
+
+  document.getElementById('ca-body').innerHTML=`
+  <!-- KPI -->
+  <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+    <div class="kpi" style="background:linear-gradient(135deg,#1D4ED8,#2563EB);border-color:#2563EB">
+      <div class="lbl" style="color:rgba(255,255,255,0.7)">Paid 매출</div>
+      <div class="val" style="color:#fff;font-size:18px">${fmt(paid)}</div>
+      <div style="font-size:10px;color:rgba(255,255,255,0.6);margin-top:2px">전체의 ${pct(paid)}%</div>
+    </div>
+    <div class="kpi">
+      <div class="lbl">FOC 금액</div>
+      <div class="val" style="color:var(--red);font-size:18px">${fmt(foc)}</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:2px">전체의 ${pct(foc)}%</div>
+    </div>
+    <div class="kpi">
+      <div class="lbl">Sample</div>
+      <div class="val" style="color:var(--purple);font-size:18px">${fmt(sample)}</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:2px">전체의 ${pct(sample)}%</div>
+    </div>
+    <div class="kpi">
+      <div class="lbl">Lost</div>
+      <div class="val" style="color:#993C1D;font-size:18px">${fmt(lost)}</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:2px">전체의 ${pct(lost)}%</div>
+    </div>
+  </div>
+
+  <!-- 발주 현황 -->
+  <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+    <div class="kpi"><div class="lbl">총 발주 건수</div><div class="val">${invs.length}건</div></div>
+    <div class="kpi"><div class="lbl">건당 평균 매출</div><div class="val">${fmt(avgOrder)}</div></div>
+    <div class="kpi"><div class="lbl">마지막 발주일</div><div class="val" style="font-size:15px">${lastOrder}</div></div>
+  </div>
+
+  <!-- 매출 구성 비율 바 -->
+  <div class="card" style="margin-bottom:12px;padding:14px 16px">
+    <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px">매출 구성 비율</div>
+    <div style="display:flex;height:28px;border-radius:8px;overflow:hidden;gap:2px">
+      ${paid>0?`<div style="flex:${paid};background:#2563EB;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:600">Paid ${pct(paid)}%</div>`:''}
+      ${foc>0?`<div style="flex:${foc};background:#DC2626;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:600">FOC ${pct(foc)}%</div>`:''}
+      ${sample>0?`<div style="flex:${sample};background:#7C3AED;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:600">Sample ${pct(sample)}%</div>`:''}
+      ${lost>0?`<div style="flex:${lost};background:#993C1D;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:600">Lost ${pct(lost)}%</div>`:''}
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px">
+    <!-- 월별 추이 차트 -->
+    <div class="card" style="padding:14px 16px">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px">월별 매출 추이</div>
+      <canvas id="${chartId}" height="180"></canvas>
+    </div>
+
+    <!-- 품목별 TOP -->
+    <div class="card" style="padding:14px 16px">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px">Paid 품목 TOP 10</div>
+      ${topProds.map(([name,d],i)=>`
+        <div style="margin-bottom:7px">
+          <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px">
+            <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px" title="${name}">${i+1}. ${name}</span>
+            <span style="color:var(--text2);flex-shrink:0;margin-left:4px">${fmt(d.amt)}</span>
+          </div>
+          <div style="height:4px;background:var(--bg3);border-radius:4px;overflow:hidden">
+            <div style="width:${Math.round(d.amt/maxAmt*100)}%;height:100%;background:#2563EB;border-radius:4px"></div>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>
+
+  <!-- 인보이스 히스토리 -->
+  <div class="card">
+    <div class="card-hd"><h3>발주 히스토리 <span style="font-weight:400;color:var(--text3);font-size:11px">${invs.length}건</span></h3></div>
+    <div class="tw"><table>
+      <thead><tr><th>인보이스 번호</th><th>발주일</th><th>담당자</th><th style="text-align:right">Paid</th><th style="text-align:right">FOC</th><th>입금</th><th>출고</th></tr></thead>
+      <tbody>${invs.slice(0,50).map(v=>{
+        const vi=_items.filter(i=>i.invoice_id===v.id);
+        const vp=vi.filter(i=>i.sales_type==='Paid').reduce((a,i)=>a+(i.qty||0)*(i.price||0),0);
+        const vf=vi.filter(i=>i.sales_type==='FOC').reduce((a,i)=>a+(i.qty||0)*(i.price||0),0);
+        return`<tr>
+          <td><span class="alink" onclick="viewInv('${v.id}')">${v.no}</span></td>
+          <td style="font-size:11px">${v.order_date||'-'}</td>
+          <td style="font-size:11px">${v.manager||'-'}</td>
+          <td style="text-align:right;font-size:11px">${vp>0?fmt(vp):'-'}</td>
+          <td style="text-align:right;font-size:11px;color:var(--red)">${vf>0?fmt(vf):'-'}</td>
+          <td><span class="badge ${v.pay_status==='Paid'?'bg-green':'bg-amber'}">${v.pay_status||'미확인'}</span></td>
+          <td><span class="badge ${v.ship_status==='출고완료'?'bg-green':'bg-amber'}">${v.ship_status||'미출고'}</span></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>
+  </div>`;
+
+  // Chart.js 월별 차트
+  setTimeout(()=>{
+    const ctx=document.getElementById(chartId);
+    if(!ctx)return;
+    new Chart(ctx,{
+      type:'bar',
+      data:{
+        labels:months.map(m=>m.slice(2)),
+        datasets:[
+          {label:'Paid',data:months.map(m=>monthMap[m].paid),backgroundColor:'#2563EB',borderRadius:3},
+          {label:'FOC',data:months.map(m=>monthMap[m].foc),backgroundColor:'#DC2626',borderRadius:3},
+          {label:'Sample',data:months.map(m=>monthMap[m].sample),backgroundColor:'#7C3AED',borderRadius:3},
+        ]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:{font:{size:10},boxWidth:10}}},
+        scales:{
+          x:{stacked:true,ticks:{font:{size:10}}},
+          y:{stacked:true,ticks:{font:{size:10},callback:v=>v>=1000000?Math.round(v/1000000)+'M':v>=1000?Math.round(v/1000)+'K':v}}
+        }
+      }
+    });
+  },100);
+}
+
+// ─── 업체별 분석 PDF 보고서 ───
+function printCustReport(){
+  const cust=_caSelected;
+  if(!cust)return;
+  const invs=_invoices.filter(v=>v.customer===cust);
+  const items=_items.filter(i=>invs.find(v=>v.id===i.invoice_id));
+
+  const paid=items.filter(i=>i.sales_type==='Paid').reduce((a,i)=>a+(i.qty||0)*(i.price||0),0);
+  const foc=items.filter(i=>i.sales_type==='FOC').reduce((a,i)=>a+(i.qty||0)*(i.price||0),0);
+  const sample=items.filter(i=>i.sales_type==='Sample').reduce((a,i)=>a+(i.qty||0)*(i.price||0),0);
+  const lost=items.filter(i=>i.sales_type==='Lost').reduce((a,i)=>a+(i.qty||0)*(i.price||0),0);
+  const total=paid+foc+sample+lost;
+  const pct=v=>total>0?((v/total)*100).toFixed(1):0;
+  const lastOrder=invs.sort((a,b)=>(b.order_date||'').localeCompare(a.order_date||''))[0]?.order_date||'-';
+
+  // 월별
+  const monthMap={};
+  invs.forEach(v=>{
+    if(!v.order_date)return;
+    const m=v.order_date.slice(0,7);
+    if(!monthMap[m])monthMap[m]={paid:0,foc:0,sample:0,lost:0,cnt:0};
+    monthMap[m].cnt++;
+    _items.filter(i=>i.invoice_id===v.id).forEach(i=>{
+      const amt=(i.qty||0)*(i.price||0);
+      const t=(i.sales_type||'').toLowerCase();
+      if(t==='paid')monthMap[m].paid+=amt;
+      else if(t==='foc')monthMap[m].foc+=amt;
+      else if(t==='sample')monthMap[m].sample+=amt;
+      else if(t==='lost')monthMap[m].lost+=amt;
+    });
+  });
+  const months=Object.keys(monthMap).sort();
+
+  // 품목 TOP
+  const prodMap={};
+  items.filter(i=>i.sales_type==='Paid').forEach(i=>{
+    const k=i.product_name||i.name||'기타';
+    if(!prodMap[k])prodMap[k]={qty:0,amt:0};
+    prodMap[k].qty+=(i.qty||0);
+    prodMap[k].amt+=(i.qty||0)*(i.price||0);
+  });
+  const topProds=Object.entries(prodMap).sort((a,b)=>b[1].amt-a[1].amt).slice(0,10);
+
+  const printWin=window.open('','_blank','width=900,height=700');
+  printWin.document.write(`<!DOCTYPE html>
+<html lang="ko"><head>
+<meta charset="UTF-8"/>
+<title>${cust} 거래처 분석 보고서</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:11px;color:#1a1a1a;background:#fff;padding:20mm}
+  h1{font-size:20px;font-weight:700;color:#1D4ED8;margin-bottom:4px}
+  .subtitle{font-size:11px;color:#666;margin-bottom:24px;padding-bottom:12px;border-bottom:2px solid #1D4ED8}
+  .section{margin-bottom:20px}
+  .section-title{font-size:13px;font-weight:700;color:#1D4ED8;margin-bottom:10px;padding-bottom:4px;border-bottom:1px solid #E5E7EB}
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+  .kpi{background:#F8FAFF;border:1px solid #DBEAFE;border-radius:8px;padding:10px 12px}
+  .kpi.blue{background:#1D4ED8;border-color:#1D4ED8}
+  .kpi-lbl{font-size:9px;color:#6B7280;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+  .kpi-lbl.w{color:rgba(255,255,255,0.7)}
+  .kpi-val{font-size:15px;font-weight:700;color:#111;margin-top:3px}
+  .kpi-val.w{color:#fff}
+  .kpi-sub{font-size:9px;color:#9CA3AF;margin-top:2px}
+  .ratio-bar{display:flex;height:22px;border-radius:6px;overflow:hidden;gap:2px;margin-bottom:16px}
+  .ratio-seg{display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:700}
+  table{width:100%;border-collapse:collapse;font-size:10px}
+  th{background:#F3F4F6;padding:6px 8px;text-align:left;font-weight:600;color:#374151;border-bottom:1px solid #E5E7EB}
+  td{padding:5px 8px;border-bottom:1px solid #F3F4F6;color:#374151}
+  tr:last-child td{border-bottom:none}
+  .num{text-align:right}
+  .badge{display:inline-block;padding:1px 6px;border-radius:10px;font-size:9px;font-weight:600}
+  .b-blue{background:#DBEAFE;color:#1D4ED8}
+  .b-red{background:#FEE2E2;color:#DC2626}
+  .b-purple{background:#EDE9FE;color:#7C3AED}
+  .b-gray{background:#F3F4F6;color:#6B7280}
+  .bar-wrap{background:#E5E7EB;border-radius:4px;height:6px;overflow:hidden;margin-top:3px}
+  .bar-fill{height:100%;background:#1D4ED8;border-radius:4px}
+  .footer{margin-top:24px;padding-top:12px;border-top:1px solid #E5E7EB;font-size:9px;color:#9CA3AF;display:flex;justify-content:space-between}
+  @media print{body{padding:0}@page{margin:15mm;size:A4}}
+</style>
+</head><body>
+  <h1>📊 ${cust}</h1>
+  <div class="subtitle">거래처 분석 보고서 &nbsp;|&nbsp; 출력일: ${today()} &nbsp;|&nbsp; Entropy Makeup</div>
+
+  <!-- KPI -->
+  <div class="section">
+    <div class="section-title">매출 현황</div>
+    <div class="kpi-grid">
+      <div class="kpi blue">
+        <div class="kpi-lbl w">Paid 매출</div>
+        <div class="kpi-val w">${fmt(paid)}</div>
+        <div class="kpi-sub" style="color:rgba(255,255,255,0.6)">전체의 ${pct(paid)}%</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-lbl">FOC 금액</div>
+        <div class="kpi-val" style="color:#DC2626">${fmt(foc)}</div>
+        <div class="kpi-sub">전체의 ${pct(foc)}%</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-lbl">Sample</div>
+        <div class="kpi-val" style="color:#7C3AED">${fmt(sample)}</div>
+        <div class="kpi-sub">전체의 ${pct(sample)}%</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-lbl">Lost</div>
+        <div class="kpi-val" style="color:#993C1D">${fmt(lost)}</div>
+        <div class="kpi-sub">전체의 ${pct(lost)}%</div>
+      </div>
+    </div>
+
+    <!-- 비율 바 -->
+    <div class="ratio-bar">
+      ${paid>0?`<div class="ratio-seg" style="flex:${paid};background:#1D4ED8">Paid ${pct(paid)}%</div>`:''}
+      ${foc>0?`<div class="ratio-seg" style="flex:${foc};background:#DC2626">FOC ${pct(foc)}%</div>`:''}
+      ${sample>0?`<div class="ratio-seg" style="flex:${sample};background:#7C3AED">SMP ${pct(sample)}%</div>`:''}
+      ${lost>0?`<div class="ratio-seg" style="flex:${lost};background:#993C1D">Lost ${pct(lost)}%</div>`:''}
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi"><div class="kpi-lbl">총 발주 건수</div><div class="kpi-val">${invs.length}건</div></div>
+      <div class="kpi"><div class="kpi-lbl">건당 평균 매출</div><div class="kpi-val">${fmt(Math.round(paid/Math.max(invs.length,1)))}</div></div>
+      <div class="kpi"><div class="kpi-lbl">마지막 발주일</div><div class="kpi-val" style="font-size:13px">${lastOrder}</div></div>
+    </div>
+  </div>
+
+  <!-- 월별 현황 -->
+  <div class="section">
+    <div class="section-title">월별 매출 현황</div>
+    <table>
+      <thead><tr><th>월</th><th>발주건수</th><th class="num">Paid</th><th class="num">FOC</th><th class="num">Sample</th><th class="num">Lost</th><th class="num">합계</th></tr></thead>
+      <tbody>
+        ${months.map(m=>{
+          const r=monthMap[m];
+          const mTotal=r.paid+r.foc+r.sample+r.lost;
+          return`<tr>
+            <td><strong>${m}</strong></td>
+            <td>${r.cnt}건</td>
+            <td class="num">${r.paid>0?fmt(r.paid):'-'}</td>
+            <td class="num" style="color:#DC2626">${r.foc>0?fmt(r.foc):'-'}</td>
+            <td class="num" style="color:#7C3AED">${r.sample>0?fmt(r.sample):'-'}</td>
+            <td class="num" style="color:#993C1D">${r.lost>0?fmt(r.lost):'-'}</td>
+            <td class="num"><strong>${fmt(mTotal)}</strong></td>
+          </tr>`;
+        }).join('')}
+        <tr style="background:#F8FAFF;font-weight:700">
+          <td>합계</td><td>${invs.length}건</td>
+          <td class="num">${fmt(paid)}</td>
+          <td class="num" style="color:#DC2626">${fmt(foc)}</td>
+          <td class="num" style="color:#7C3AED">${fmt(sample)}</td>
+          <td class="num" style="color:#993C1D">${fmt(lost)}</td>
+          <td class="num">${fmt(total)}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 품목 TOP -->
+  <div class="section">
+    <div class="section-title">Paid 품목 TOP 10</div>
+    <table>
+      <thead><tr><th>순위</th><th>품목명</th><th class="num">수량</th><th class="num">금액</th><th class="num">비율</th></tr></thead>
+      <tbody>
+        ${topProds.map(([name,d],i)=>`
+        <tr>
+          <td style="color:#1D4ED8;font-weight:700">${i+1}</td>
+          <td>${name}</td>
+          <td class="num">${d.qty.toLocaleString()}개</td>
+          <td class="num">${fmt(d.amt)}</td>
+          <td class="num">${paid>0?((d.amt/paid)*100).toFixed(1):0}%</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 발주 히스토리 -->
+  <div class="section">
+    <div class="section-title">발주 히스토리 (최근 30건)</div>
+    <table>
+      <thead><tr><th>인보이스 번호</th><th>발주일</th><th>담당자</th><th class="num">Paid</th><th class="num">FOC</th><th>입금</th><th>출고</th></tr></thead>
+      <tbody>
+        ${invs.slice(0,30).map(v=>{
+          const vi=_items.filter(i=>i.invoice_id===v.id);
+          const vp=vi.filter(i=>i.sales_type==='Paid').reduce((a,i)=>a+(i.qty||0)*(i.price||0),0);
+          const vf=vi.filter(i=>i.sales_type==='FOC').reduce((a,i)=>a+(i.qty||0)*(i.price||0),0);
+          return`<tr>
+            <td><strong>${v.no}</strong></td>
+            <td>${v.order_date||'-'}</td>
+            <td>${v.manager||'-'}</td>
+            <td class="num">${vp>0?fmt(vp):'-'}</td>
+            <td class="num" style="color:#DC2626">${vf>0?fmt(vf):'-'}</td>
+            <td><span class="badge ${v.pay_status==='Paid'?'b-blue':'b-gray'}">${v.pay_status||'미확인'}</span></td>
+            <td><span class="badge ${v.ship_status==='출고완료'?'b-blue':'b-gray'}">${v.ship_status||'미출고'}</span></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    <span>Entropy Makeup 해외영업 관리 시스템</span>
+    <span>출력일: ${today()} | 기밀문서 - 외부 유출 금지</span>
+  </div>
+
+  <script>window.onload=()=>window.print();<\/script>
+</body></html>`);
+  printWin.document.close();
+}
+
+// ─── 복사 방지 ───
+// 우클릭 방지
+document.addEventListener('contextmenu', e=>e.preventDefault());
+
+// 단축키 방지 (Ctrl+S, Ctrl+U, Ctrl+Shift+I, F12)
+document.addEventListener('keydown', e=>{
+  if(e.ctrlKey && (e.key==='s'||e.key==='S'||e.key==='u'||e.key==='U'||e.key==='p'||e.key==='P')) e.preventDefault();
+  if(e.ctrlKey && e.shiftKey && (e.key==='i'||e.key==='I'||e.key==='j'||e.key==='J'||e.key==='c'||e.key==='C')) e.preventDefault();
+  if(e.key==='F12') e.preventDefault();
+});
+
+// 텍스트 선택 방지
+document.addEventListener('selectstart', e=>{
+  if(!['INPUT','TEXTAREA'].includes(e.target.tagName)) e.preventDefault();
+});
+
+// 드래그 방지
+document.addEventListener('dragstart', e=>e.preventDefault());
 </script>
 </body>
 </html>
