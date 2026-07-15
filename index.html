@@ -4264,11 +4264,8 @@ async function loginWithAdmin(){
   if(btn){ btn.textContent='로그인'; btn.disabled=false; }
   if(error){ showLoginError('❌ ' + (error.message.includes('Invalid') ? '비밀번호가 올바르지 않습니다.' : error.message)); return; }
   if(data?.session){
-    _appLoaded = true;
+    // onAuthStateChange가 SIGNED_IN 이벤트로 loadAll 처리하므로 여기선 생략
     showMainApp(data.session.user);
-    await loadAll();
-    go('dash');
-    keepAlive();
   }
 }
 
@@ -4358,12 +4355,13 @@ sb.auth.onAuthStateChange(async (event, session) => {
       showLoginError('❌ ' + ALLOWED_DOMAIN + ' 계정만 접근 가능합니다. (' + email + ')');
       return;
     }
-    // 아직 앱이 안 로드됐을 때만 (OAuth 리다이렉트 콜백)
+    // 아직 앱이 안 로드됐을 때만 (OAuth 리다이렉트 콜백 또는 관리자 로그인)
     if(!_appLoaded){
       _appLoaded = true;
       showMainApp(session.user);
       await loadAll();
       go('dash');
+      keepAlive();
     }
   } else if(event === 'SIGNED_OUT'){
     _appLoaded = false;
