@@ -295,8 +295,12 @@ tr:hover td{background:var(--bg3)}
       <p style="color:rgba(255,255,255,0.5);font-size:11px;margin-bottom:16px;text-align:center">관리자 계정으로 로그인하세요</p>
       <input id="admin-id" type="text" placeholder="아이디" style="width:100%;padding:10px 14px;border-radius:10px;border:0.5px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);color:#fff;font-size:13px;margin-bottom:10px;outline:none;box-sizing:border-box"
         onkeydown="if(event.key==='Enter')document.getElementById('admin-pw').focus()"/>
-      <input id="admin-pw" type="password" placeholder="비밀번호" style="width:100%;padding:10px 14px;border-radius:10px;border:0.5px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);color:#fff;font-size:13px;margin-bottom:14px;outline:none;box-sizing:border-box"
-        onkeydown="if(event.key==='Enter')loginWithAdmin()"/>
+      <div style="position:relative;margin-bottom:14px">
+        <input id="admin-pw" type="password" placeholder="비밀번호" style="width:100%;padding:10px 40px 10px 14px;border-radius:10px;border:0.5px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);color:#fff;font-size:13px;outline:none;box-sizing:border-box"
+          onkeydown="if(event.key==='Enter')loginWithAdmin()"/>
+        <button onclick="const i=document.getElementById('admin-pw');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁':'🙈'" type="button"
+          style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:14px;color:rgba(255,255,255,0.5);padding:0;line-height:1">👁</button>
+      </div>
       <button onclick="loginWithAdmin()" style="width:100%;padding:12px;border:none;border-radius:10px;background:#2563EB;color:#fff;font-size:13px;font-weight:600;cursor:pointer">로그인</button>
     </div>
     <div id="login-error" style="margin-top:12px;font-size:11px;color:#F87171;display:none;text-align:center"></div>
@@ -1444,8 +1448,8 @@ ${msg}`}],
 function downloadMeongse(inv){
   const c=custByName(inv.customer)||{};
   const allItems=inv.items||getInvItems(inv.id).map(it=>({...it}));
-  const items=allItems.filter(it=>(it.sales_type||it.salesType||'Paid')==='Paid');
-  if(!items.length){toast('Paid 품목이 없습니다.');return;}
+  const items=allItems;
+  if(!items.length){toast('품목이 없습니다.');return;}
 
   const dateStr=(inv.order_date||inv.orderDate||today()).replace(/-/g,'');
   const ym=dateStr.slice(0,8);
@@ -1461,6 +1465,9 @@ function downloadMeongse(inv){
   const fmtN2=n=>n==null?'':Number(n).toLocaleString();
   const itemRows=items.map(it=>{
     const qty=Number(it.qty)||0;const price=Number(it.price)||0;const amt=qty*price;
+    const sType=(it.sales_type||it.salesType||it.st||'Paid').toUpperCase();
+    const typeColors={'PAID':'#1D4ED8','FOC':'#DC2626','SAMPLE':'#7C3AED','REPLACEMENT':'#D97706','LOST':'#993C1D'};
+    const tColor=typeColors[sType]||'#666';
     return `<tr>
       <td>${it.barcode||''}</td>
       <td style="text-align:left">${it.name||''}</td>
@@ -1468,7 +1475,7 @@ function downloadMeongse(inv){
       <td>₩${fmtN2(price)}</td>
       <td>₩${fmtN2(amt)}</td>
       <td>₩${fmtN2(amt)}</td>
-      <td colspan="2"></td>
+      <td colspan="2" style="text-align:center;font-weight:700;font-size:10px;color:${tColor}">${sType}</td>
     </tr>`;
   }).join('');
 
@@ -1606,9 +1613,10 @@ async function loadInvDocs(invId){
     el.innerHTML=files.map(f=>{
       const {data:urlData}=sb.storage.from('invoice-docs').getPublicUrl(invId+'/'+f.name);
       const url=urlData?.publicUrl||'';
+      const displayName=f.metadata?.originalName||f.name;
       return`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid var(--border)">
         <i class="ti ti-file" style="color:var(--purple)"></i>
-        <a href="${url}" target="_blank" style="flex:1;color:var(--text);font-size:11px;text-decoration:none">${f.name}</a>
+        <a href="${url}" target="_blank" style="flex:1;color:var(--text);font-size:11px;text-decoration:none">${displayName}</a>
         <span class="alink" style="color:var(--red);font-size:10px" onclick="deleteInvDoc('${invId}','${f.name}')">삭제</span>
       </div>`;
     }).join('');
@@ -1627,9 +1635,10 @@ async function invDropFiles(files){
 async function uploadInvDoc(input){
   const file=input?.files?.[0]||input;
   if(!file||!_currentInvId)return;
-  const path=_currentInvId+'/'+file.name;
+  const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path=_currentInvId+'/'+safeName;
   toast('업로드 중...');
-  const{data,error}=await sb.storage.from('invoice-docs').upload(path,file,{upsert:true});
+  const{data,error}=await sb.storage.from('invoice-docs').upload(path,file,{upsert:true,metadata:{originalName:file.name}});
   if(error){
     toast('❌ 업로드 실패: '+error.message);
     console.error(error);return;
