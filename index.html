@@ -904,11 +904,16 @@ async function loadAll(){
   }
   _taxRecords=tr.data||[];
   // invoice_items 전체 로드 (병렬로 2페이지 동시)
-  const [p1,p2]=await Promise.all([
-    sb.from('invoice_items').select('*').range(0,999),
-    sb.from('invoice_items').select('*').range(1000,1999)
-  ]);
-  _items=[...(p1.data||[]),...(p2.data||[])];
+  // invoice_items 전체 로드 - 개수 상관없이 자동으로 다 가져옴
+  _items=[];
+  let _from=0;
+  while(true){
+    const{data,error}=await sb.from('invoice_items').select('*').range(_from,_from+999);
+    if(error||!data||!data.length)break;
+    _items.push(...data);
+    if(data.length<1000)break;
+    _from+=1000;
+  }
 }
 
 async function preloadAllInvFiles(){
