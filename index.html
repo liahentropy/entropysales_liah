@@ -4387,18 +4387,18 @@ function keepAlive(){
     return;
   }
   const email = session.user?.email || '';
-  if(!email.endsWith('@' + ALLOWED_DOMAIN)){
+  const isAdmin = email === ADMIN_EMAIL;
+  if(!isAdmin && !email.endsWith('@' + ALLOWED_DOMAIN)){
     await sb.auth.signOut();
     showLoginScreen();
     showLoginError('❌ ' + ALLOWED_DOMAIN + ' 계정만 접근 가능합니다. (' + email + ')');
     return;
   }
-  // 세션 있으면 바로 앱 로드
+  // 세션 있으면 바로 앱 로드 (onAuthStateChange 중복 실행 방지)
   _appLoaded = true;
   showMainApp(session.user);
   await loadAll();
   go('dash');
-  keepAlive();
   keepAlive();
 })();
 
